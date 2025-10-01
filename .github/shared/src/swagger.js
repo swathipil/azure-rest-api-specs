@@ -4,8 +4,10 @@ import $RefParser, { ResolverError } from "@apidevtools/json-schema-ref-parser";
 import { readFile } from "fs/promises";
 import { dirname, relative, resolve } from "path";
 import { mapAsync } from "./array.js";
+import { example } from "./changed-files.js";
 import { includesFolder } from "./path.js";
 import { SpecModelError } from "./spec-model-error.js";
+import { embedError } from "./spec-model.js";
 
 /**
  * @typedef {import('./spec-model.js').Tag} Tag
@@ -191,7 +193,7 @@ export class Swagger {
    * @returns {string} version kind (stable or preview)
    */
   get versionKind() {
-    return dirname(this.#path).includes("/preview/")
+    return includesFolder(this.#path, "preview")
       ? API_VERSION_LIFECYCLE_STAGES.PREVIEW
       : API_VERSION_LIFECYCLE_STAGES.STABLE;
   }
@@ -201,45 +203,28 @@ export class Swagger {
    * @returns {Promise<Object>}
    */
   async toJSONAsync(options) {
-    return {
-      path:
-        options?.relativePaths && this.#tag?.readme?.specModel
-          ? relative(this.#tag?.readme?.specModel.folder, this.#path)
-          : this.#path,
-      refs: options?.includeRefs
-        ? await mapAsync(
-            [...(await this.getRefs()).values()].sort((a, b) => a.path.localeCompare(b.path)),
-            async (s) =>
-              // Do not include swagger refs transitively, otherwise we could get in infinite loop
-              await s.toJSONAsync({ ...options, includeRefs: false }),
-          )
-        : undefined,
-    };
+    return await embedError(
+      async () => ({
+        path:
+          options?.relativePaths && this.#tag?.readme?.specModel
+            ? relative(this.#tag?.readme?.specModel.folder, this.#path)
+            : this.#path,
+        refs: options?.includeRefs
+          ? await mapAsync(
+              [...(await this.getRefs()).values()].sort((a, b) => a.path.localeCompare(b.path)),
+              async (s) =>
+                // Do not include swagger refs transitively, otherwise we could get in infinite loop
+                await s.toJSONAsync({ ...options, includeRefs: false }),
+            )
+          : undefined,
+      }),
+      options,
+    );
   }
 
   toString() {
     return `Swagger(${this.#path}, {logger: ${this.#logger}})`;
   }
-}
-
-// TODO: Remove duplication with changed-files.js (which currently requires paths relative to repo root)
-
-/**
- * @param {string} [file]
- * @returns {boolean}
- */
-function example(file) {
-  // Folder name "examples" should match case for consistency across specs
-  return typeof file === "string" && json(file) && includesFolder(file, "examples");
-}
-
-/**
- * @param {string} [file]
- * @returns {boolean}
- */
-function json(file) {
-  // Extension "json" with any case is a valid JSON file
-  return typeof file === "string" && file.toLowerCase().endsWith(".json");
 }
 
 // API version lifecycle stages
