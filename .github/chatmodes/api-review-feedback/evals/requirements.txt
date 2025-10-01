@@ -1,0 +1,12 @@
+# Core dependencies
+jsonlines>=4.0.0
+python-dotenv>=1.0.0
+azure-identity>=1.15.0
+openai>=1.0.0
+
+# Testing and comparison tools
+deepdiff>=8.6.0  # For semantic file comparison
+pytest>=8.0.0    # Test framework
+
+# TypeSpec compilation (requires Node.js and npm install -g @typespec/compiler)
+# Note: TypeSpec CLI must be installed separately via npm
