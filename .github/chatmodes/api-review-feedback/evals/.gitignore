@@ -1,3 +1,4 @@
-# ignore results
+.env
+
 results/
 *_report.md
