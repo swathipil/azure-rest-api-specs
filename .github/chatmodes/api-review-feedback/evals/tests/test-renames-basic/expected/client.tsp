@@ -7,6 +7,4 @@ using Language.QuestionAnswering;
 namespace ClientCustomizations;
 
 @@clientName(AnswersOptions.confidenceScoreThreshold, "confidenceThreshold", "python");
-@@clientName(ShortAnswerOptions.confidenceScoreThreshold,
-  "confidenceThreshold", "python"
-);
+@@clientName(ShortAnswerOptions.confidenceScoreThreshold, "confidenceThreshold", "python");

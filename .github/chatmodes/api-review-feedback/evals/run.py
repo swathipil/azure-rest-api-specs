@@ -169,6 +169,7 @@ class TypeSpecChatmodeRunner:
     
     def __init__(self):
         self.system_prompt = self._extract_chatmode_system_prompt()
+        self.checkpoints = self._discover_checkpoints(self.system_prompt)
     
     def _extract_chatmode_system_prompt(self) -> str:
         """Extract the system prompt from the chatmode file.
@@ -215,6 +216,133 @@ class TypeSpecChatmodeRunner:
             if len(parts) >= 3:
                 return parts[2].strip()
         return content.strip()
+    
+    @staticmethod
+    def _discover_checkpoints(system_prompt: str) -> List[str]:
+        """Phase 1: Dynamically extract ordered checkpoint names (#### CHECKPOINT_n:) from the chatmode file.
+        Returns a list like ['CHECKPOINT_1', 'CHECKPOINT_2', ...]."""
+        pattern = re.compile(r'^####\s+(CHECKPOINT_\d+):', re.MULTILINE)
+        found = pattern.findall(system_prompt)
+        # Ensure numeric sort in case of out-of-order authoring
+        def key(cp: str) -> int:
+            try:
+                return int(cp.split('_')[1])
+            except Exception:
+                return 0
+        return sorted(dict.fromkeys(found), key=key)
+    
+    async def run_checkpoint_sequence(self, test_case: Dict[str, Any], scenario_spec_path: Path, checkpoint_dir: Path) -> Tuple[str, str, List[Tuple[str, Any]]]:
+        """Phase 1 multi-turn orchestration.
+        - Sends base context once.
+        - Iterates each discovered checkpoint requesting ONLY its JSON.
+        - Single retry on JSON parse failure.
+        - Persists each checkpoint JSON to files.
+        - After final checkpoint, requests full client.tsp if not already emitted.
+        Returns: (final_response_text, base_user_message, checkpoint_records)
+        """
+        feedback = test_case.get("feedback", "") or test_case.get("query", "")
+        language = test_case.get("language", "")
+
+        # Build context listing TypeSpec spec files
+        context_chunks = []
+        for tsp_file in scenario_spec_path.rglob("*.tsp"):
+            rel = tsp_file.relative_to(scenario_spec_path)
+            context_chunks.append(f"File: {rel}\n```tsp\n{tsp_file.read_text()}\n```")
+        context_block = "\n\n".join(context_chunks)
+
+        base_user_message = (
+            f"[EVAL_MODE] {feedback}\n\n"
+            f"Context - TypeSpec files in the specification:\n{context_block}\n\n"
+            "You will be asked for checkpoints sequentially. Respond exactly as instructed for each step."
+        )
+
+        # Model client setup reused across turns
+        az_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        az_key = os.getenv("AZURE_OPENAI_API_KEY")
+        std_key = os.getenv("OPENAI_API_KEY")
+        if az_endpoint:
+            from openai import AsyncAzureOpenAI
+            if az_key:
+                client = AsyncAzureOpenAI(azure_endpoint=az_endpoint, api_version=API_VERSION, api_key=az_key)
+            else:
+                credential = DefaultAzureCredential()
+                client = AsyncAzureOpenAI(
+                    azure_endpoint=az_endpoint,
+                    api_version=API_VERSION,
+                    azure_ad_token_provider=get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default"),
+                )
+        else:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=std_key or az_key)
+
+        conversation: List[Dict[str, str]] = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": base_user_message},
+        ]
+
+        checkpoint_records: List[Tuple[str, Any]] = []
+
+        async def _call(messages: List[Dict[str, str]]) -> str:
+            resp = await client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                temperature=0.0,
+                max_tokens=800,
+            )
+            return resp.choices[0].message.content.strip()
+
+        def _parse_json_maybe(text: str) -> Any:
+            text_stripped = text.strip()
+            # If model wraps JSON in code fences, strip them
+            fenced = re.match(r"```(?:json)?\s*(.*)```", text_stripped, re.DOTALL | re.IGNORECASE)
+            if fenced:
+                text_stripped = fenced.group(1).strip()
+            return json.loads(text_stripped)
+
+        for cp in self.checkpoints:
+            request_msg = (
+                f"Produce ONLY the JSON object for {cp}. Do not include text before or after. "
+                f"Return a single JSON object (no arrays, no multiple objects)."
+            )
+            conversation.append({"role": "user", "content": request_msg})
+            raw = await _call(conversation)
+            # First attempt parse
+            parsed = None
+            retry_used = False
+            try:
+                parsed = _parse_json_maybe(raw)
+            except Exception:
+                retry_used = True
+                repair_prompt = (
+                    f"Previous output invalid JSON for {cp}. Respond again with ONLY valid JSON for {cp}, no commentary."
+                )
+                conversation.append({"role": "assistant", "content": raw})  # record attempt
+                conversation.append({"role": "user", "content": repair_prompt})
+                raw = await _call(conversation)
+                try:
+                    parsed = _parse_json_maybe(raw)
+                except Exception:
+                    parsed = {"_error": "unparseable", "raw": raw}
+            # Record final assistant message
+            conversation.append({"role": "assistant", "content": raw})
+            checkpoint_records.append((cp, parsed))
+            # Persist to disk
+            (checkpoint_dir / f"{cp}.json").write_text(json.dumps(parsed, indent=2, ensure_ascii=False))
+
+        # Ask for final client.tsp
+        final_request = (
+            "Now emit the complete client.tsp content in a single ```tsp fenced code block with no extra commentary." \
+            " Ensure proper imports, using statements, namespace, and decorators."
+        )
+        conversation.append({"role": "user", "content": final_request})
+        final_response = await _call(conversation)
+        conversation.append({"role": "assistant", "content": final_response})
+        # Persist conversation log (simple jsonl)
+        convo_path = checkpoint_dir / "conversation.log.jsonl"
+        with convo_path.open("w", encoding="utf-8") as fh:
+            for m in conversation:
+                fh.write(json.dumps(m, ensure_ascii=False) + "\n")
+        return final_response, base_user_message, checkpoint_records
         
         
     
@@ -391,11 +519,15 @@ class NewChatmodeEvalRunner:
                 d.mkdir(parents=True, exist_ok=True)
 
             try:
-                response, prompt_text = await self.chatmode_runner.run_chatmode_on_scenario(test_case, spec_path)
+                checkpoint_dir = raw_dir / "checkpoints"
+                checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                # Phase 1 multi-turn sequence
+                response, base_user_message, checkpoint_records = await self.chatmode_runner.run_checkpoint_sequence(
+                    test_case, spec_path, checkpoint_dir
+                )
                 (raw_dir / "response.txt").write_text(response)
-                # Write user/system prompts as separate markdown files for audit
-                (raw_dir / "user_prompt.md").write_text(f"```text\n{prompt_text}\n````\n")
-                (raw_dir / "system_prompt.md").write_text(f"```text\n{self.chatmode_runner.system_prompt}\n````\n")
+                (raw_dir / "user_prompt.md").write_text(f"```text\n{base_user_message}\n```\n")
+                (raw_dir / "system_prompt.md").write_text(f"```text\n{self.chatmode_runner.system_prompt}\n```\n")
 
                 client_tsp_content = self._extract_client_tsp_from_response(response)
                 extracted_client_file = extracted_dir / "client.tsp"
