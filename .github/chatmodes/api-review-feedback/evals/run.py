@@ -150,9 +150,10 @@ class TypeSpecFileComparator:
 class TypeSpecChatmodeRunner:
     """Handles running the chatmode against test scenarios."""
 
-    def __init__(self):
+    def __init__(self, eval_mode: bool = False):
         self.system_prompt = self._extract_chatmode_system_prompt()
-        self.checkpoints = self._discover_checkpoints(self.system_prompt)
+        self.checkpoints = self._discover_checkpoints(self.system_prompt) if eval_mode else []
+        self.eval_mode = eval_mode
 
     def _extract_chatmode_system_prompt(self) -> str:
         """Extract the system prompt from the chatmode file.
@@ -240,12 +241,13 @@ class TypeSpecChatmodeRunner:
         """Run checkpoints with ALL feedback aggregated into ONE conversation.
 
         Mimics real user behavior: pasting multiple feedback items at once.
-
-        CHECKPOINT_0: Parse and extract individual feedback items from the combined prompt
-        Then runs regular checkpoints for the aggregated changes.
+        Runs regular checkpoints for the aggregated changes.
 
         Returns: (final_response_text, base_user_message, checkpoint_records)
         """
+        # Save system prompt at the beginning
+        (checkpoint_dir / "system_prompt.md").write_text(f"```text\n{self.system_prompt}\n```\n")
+
         # Combine all feedback items into numbered list (like a real user would)
         feedback_items = []
         for i, tc in enumerate(test_cases, 1):
@@ -262,13 +264,17 @@ class TypeSpecChatmodeRunner:
             context_chunks.append(f"File: {rel}\n```tsp\n{tsp_file.read_text()}\n```")
         context_block = "\n\n".join(context_chunks)
 
+        eval_prefix = "[EVAL_MODE] " if self.eval_mode else ""
         base_user_message = (
-            f"[EVAL_MODE] Here is the API review feedback to implement:\n\n"
+            f"{eval_prefix}Here is the API review feedback to implement:\n\n"
             f"{combined_feedback}\n\n"
             f"Context - TypeSpec files in the specification:\n{context_block}\n\n"
             "Please apply all of the above changes to client.tsp. "
             "You will be asked for checkpoints sequentially. Respond exactly as instructed for each step."
         )
+
+        # Save user prompt at the beginning
+        (checkpoint_dir / "user_prompt.md").write_text(f"```text\n{base_user_message}\n```\n")
 
         # Model client setup reused across turns
         client = self._create_openai_client()
@@ -296,34 +302,7 @@ class TypeSpecChatmodeRunner:
                 text_stripped = fenced.group(1).strip()
             return json.loads(text_stripped)
 
-        # CHECKPOINT_0: Extract individual feedback items
-        checkpoint_0_request = (
-            "CHECKPOINT_0: Parse the feedback and extract each individual feedback item into a JSON array. "
-            "Respond with ONLY a JSON object in this format:\n"
-            '{"feedback_items": [{"item_number": 1, "feedback": "text", "language": "python|java|csharp|javascript|all"}, ...]}\n'
-            "No commentary, just the JSON."
-        )
-        conversation_history.append({"role": "user", "content": checkpoint_0_request})
-        raw = await _call()
-
-        parsed_checkpoint_0 = None
-        try:
-            parsed_checkpoint_0 = _parse_json_maybe(raw)
-        except (json.JSONDecodeError, KeyError, ValueError):
-            repair_prompt = "Previous output was invalid JSON. Respond again with ONLY valid JSON for CHECKPOINT_0, no commentary."
-            conversation_history.append({"role": "assistant", "content": raw})
-            conversation_history.append({"role": "user", "content": repair_prompt})
-            raw = await _call()
-            try:
-                parsed_checkpoint_0 = _parse_json_maybe(raw)
-            except (json.JSONDecodeError, KeyError, ValueError):
-                parsed_checkpoint_0 = {"_error": "unparseable", "raw": raw}
-
-        conversation_history.append({"role": "assistant", "content": raw})
-        checkpoint_records.append(("CHECKPOINT_0", parsed_checkpoint_0))
-        (checkpoint_dir / "CHECKPOINT_0.json").write_text(json.dumps(parsed_checkpoint_0, indent=2, ensure_ascii=False))
-
-        # Continue with regular checkpoints
+        # Run checkpoints
         for cp in self.checkpoints:
             request_msg = (
                 f"Produce ONLY the JSON object for {cp}. Do not include text before or after. "
@@ -532,9 +511,9 @@ class TypeSpecCompiler:
 class NewChatmodeEvalRunner:
     """Main evaluation runner for the new test structure."""
 
-    def __init__(self, tests_dir: Path):
+    def __init__(self, tests_dir: Path, eval_mode: bool = False):
         self.tests_dir = tests_dir
-        self.chatmode_runner = TypeSpecChatmodeRunner()
+        self.chatmode_runner = TypeSpecChatmodeRunner(eval_mode=eval_mode)
         self.results = []
 
     def discover_test_scenarios(self) -> List[Path]:
@@ -547,11 +526,10 @@ class NewChatmodeEvalRunner:
 
     async def run_test_scenario(self, scenario_path: Path) -> List[TypeSpecTestResult]:
         """Run all test cases in a specific test scenario.
-        New logic:
-          - Aggregated mode: All feedback items combined into ONE conversation
+        Aggregated mode:
+          - All feedback items combined into ONE conversation
           - Single artifact directory: results/aggregated/{raw,extracted,build}
-          - CHECKPOINT_0: Extract individual feedback items
-          - Then regular checkpoints for combined changes
+          - Regular checkpoints for combined changes (if eval_mode enabled)
           - Generate ONE client.tsp with all changes applied
         """
         print(f"\n🧪 Running test scenario: {scenario_path.name}")
@@ -566,6 +544,12 @@ class NewChatmodeEvalRunner:
             return [TypeSpecTestResult(scenario_path.name, False, f"Invalid test_cases.json: {e}")]
 
         results_root = scenario_path / "results"
+
+        # Clean up existing results folder before starting new test run
+        if results_root.exists():
+            shutil.rmtree(results_root)
+            print(f"  🧹 Cleaned up existing results folder")
+
         results_root.mkdir(exist_ok=True)
 
         spec_path = scenario_path / "specification"
@@ -586,7 +570,7 @@ class NewChatmodeEvalRunner:
             checkpoint_dir = raw_dir / "checkpoints"
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-            # Run aggregated checkpoint sequence (includes CHECKPOINT_0)
+            # Run aggregated checkpoint sequence
             final_response, base_user_message, checkpoint_records = await self.chatmode_runner.run_aggregated_checkpoint_sequence(
                 test_cases, spec_path, checkpoint_dir
             )
@@ -602,8 +586,6 @@ class NewChatmodeEvalRunner:
             full_response_parts.append(final_response)
 
             (raw_dir / "response.txt").write_text("".join(full_response_parts))
-            (raw_dir / "user_prompt.md").write_text(f"```text\n{base_user_message}\n```\n")
-            (raw_dir / "system_prompt.md").write_text(f"```text\n{self.chatmode_runner.system_prompt}\n```\n")
 
             # Extract only the client.tsp code block from final response
             client_tsp_content = self._extract_client_tsp_from_response(final_response)
@@ -899,6 +881,8 @@ async def main():
     parser = argparse.ArgumentParser(description="TypeSpec Chatmode Evaluation Runner")
     parser.add_argument("--scenario", help="Filter to specific test scenario")
     parser.add_argument("--report", help="Output report file", default="test_report.md")
+    parser.add_argument("--eval-mode", action="store_true",
+                        help="Enable evaluation mode with checkpoint validation (adds [EVAL_MODE] prefix)")
 
     args = parser.parse_args()
 
@@ -909,7 +893,11 @@ async def main():
         sys.exit(1)
 
     # Run tests
-    runner = NewChatmodeEvalRunner(tests_dir)
+    runner = NewChatmodeEvalRunner(tests_dir, eval_mode=args.eval_mode)
+    if args.eval_mode:
+        print("📊 Evaluation mode: Running with checkpoint validation")
+    else:
+        print("⚡ Fast mode: Skipping checkpoint validation")
     results = await runner.run_all_tests(args.scenario)
 
     # Generate and save report

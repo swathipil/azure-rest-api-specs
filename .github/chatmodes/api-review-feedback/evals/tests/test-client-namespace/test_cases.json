@@ -8,8 +8,8 @@
   },
   {
     "testcase": "java_openai_service_namespace",
-    "description": "Set Azure.OpenAI service namespace to com.azure.ai.openai for Java",
-    "feedback": "For Java, the Azure.OpenAI service namespace should be 'com.azure.ai.openai'.",
+    "description": "Set OpenAI service namespace to com.azure.ai.openai for Java",
+    "feedback": "For Java, the OpenAI service namespace should be 'com.azure.ai.openai'.",
     "language": "java",
     "tags": ["client_namespace", "java", "openai"]
   },
