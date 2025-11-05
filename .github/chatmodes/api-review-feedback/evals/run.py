@@ -9,24 +9,18 @@ import asyncio
 import json
 import argparse
 import subprocess
-import time
 import sys
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
-import difflib
 import re
 
 try:
-    import jsonlines
     import dotenv
     from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-    from deepdiff import DeepDiff
-    import pytest
 except ImportError:
     print("Error: Required packages not installed. Run: pip install -r requirements.txt")
-    print("Required: jsonlines python-dotenv azure-identity deepdiff pytest")
     sys.exit(1)
 
 # Load environment variables (root .env plus chatmode-local .env if present)
@@ -207,6 +201,28 @@ class TypeSpecChatmodeRunner:
         return content.strip()
 
     @staticmethod
+    def _create_openai_client():
+        """Create and return an OpenAI client based on environment variables."""
+        az_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        az_key = os.getenv("AZURE_OPENAI_API_KEY")
+        std_key = os.getenv("OPENAI_API_KEY")
+        
+        if az_endpoint:
+            from openai import AsyncAzureOpenAI
+            if az_key:
+                return AsyncAzureOpenAI(azure_endpoint=az_endpoint, api_version=API_VERSION, api_key=az_key)
+            else:
+                credential = DefaultAzureCredential()
+                return AsyncAzureOpenAI(
+                    azure_endpoint=az_endpoint,
+                    api_version=API_VERSION,
+                    azure_ad_token_provider=get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default"),
+                )
+        else:
+            from openai import AsyncOpenAI
+            return AsyncOpenAI(api_key=std_key or az_key)
+
+    @staticmethod
     def _discover_checkpoints(system_prompt: str) -> List[str]:
         """Phase 1: Dynamically extract ordered checkpoint names (#### CHECKPOINT_n:) from the chatmode file.
         Returns a list like ['CHECKPOINT_1', 'CHECKPOINT_2', ...]."""
@@ -227,10 +243,13 @@ class TypeSpecChatmodeRunner:
         - Single retry on JSON parse failure.
         - Persists each checkpoint JSON to files.
         - After final checkpoint, requests full client.tsp if not already emitted.
+        
+        NOTE: In actual VS Code Copilot Chat, the system prompt is automatically included in every API call.
+        In this evaluation harness, we simulate that by re-injecting critical requirements before final generation.
+        
         Returns: (final_response_text, base_user_message, checkpoint_records)
         """
         feedback = test_case.get("feedback", "") or test_case.get("query", "")
-        language = test_case.get("language", "")
 
         # Build context listing TypeSpec spec files
         context_chunks = []
@@ -246,39 +265,26 @@ class TypeSpecChatmodeRunner:
         )
 
         # Model client setup reused across turns
-        az_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        az_key = os.getenv("AZURE_OPENAI_API_KEY")
-        std_key = os.getenv("OPENAI_API_KEY")
-        if az_endpoint:
-            from openai import AsyncAzureOpenAI
-            if az_key:
-                client = AsyncAzureOpenAI(azure_endpoint=az_endpoint, api_version=API_VERSION, api_key=az_key)
-            else:
-                credential = DefaultAzureCredential()
-                client = AsyncAzureOpenAI(
-                    azure_endpoint=az_endpoint,
-                    api_version=API_VERSION,
-                    azure_ad_token_provider=get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default"),
-                )
-        else:
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=std_key or az_key)
+        client = self._create_openai_client()
 
-        conversation: List[Dict[str, str]] = [
-            {"role": "system", "content": self.system_prompt},
+        # Track conversation history (user/assistant only, system prompt added per-call like VS Code)
+        conversation_history: List[Dict[str, str]] = [
             {"role": "user", "content": base_user_message},
         ]
 
         checkpoint_records: List[Tuple[str, Any]] = []
 
-        async def _call(messages: List[Dict[str, str]]) -> str:
+        async def _call(max_tokens: int = 800) -> str:
+            # VS Code behavior: system prompt is included in EVERY call
+            messages = [{"role": "system", "content": self.system_prompt}] + conversation_history
             resp = await client.chat.completions.create(
                 model=MODEL,
                 messages=messages,
                 temperature=0.0,
-                max_tokens=800,
+                max_tokens=max_tokens,
             )
-            return resp.choices[0].message.content.strip()
+            content = resp.choices[0].message.content
+            return content.strip() if content else ""
 
         def _parse_json_maybe(text: str) -> Any:
             text_stripped = text.strip()
@@ -293,117 +299,41 @@ class TypeSpecChatmodeRunner:
                 f"Produce ONLY the JSON object for {cp}. Do not include text before or after. "
                 f"Return a single JSON object (no arrays, no multiple objects)."
             )
-            conversation.append({"role": "user", "content": request_msg})
-            raw = await _call(conversation)
+            conversation_history.append({"role": "user", "content": request_msg})
+            raw = await _call()
             # First attempt parse
             parsed = None
-            retry_used = False
             try:
                 parsed = _parse_json_maybe(raw)
-            except Exception:
-                retry_used = True
+            except (json.JSONDecodeError, KeyError, ValueError):
                 repair_prompt = (
                     f"Previous output invalid JSON for {cp}. Respond again with ONLY valid JSON for {cp}, no commentary."
                 )
-                conversation.append({"role": "assistant", "content": raw})  # record attempt
-                conversation.append({"role": "user", "content": repair_prompt})
-                raw = await _call(conversation)
+                conversation_history.append({"role": "assistant", "content": raw})  # record attempt
+                conversation_history.append({"role": "user", "content": repair_prompt})
+                raw = await _call()
                 try:
                     parsed = _parse_json_maybe(raw)
-                except Exception:
+                except (json.JSONDecodeError, KeyError, ValueError):
                     parsed = {"_error": "unparseable", "raw": raw}
             # Record final assistant message
-            conversation.append({"role": "assistant", "content": raw})
+            conversation_history.append({"role": "assistant", "content": raw})
             checkpoint_records.append((cp, parsed))
             # Persist to disk
             (checkpoint_dir / f"{cp}.json").write_text(json.dumps(parsed, indent=2, ensure_ascii=False))
 
         # Ask for final client.tsp
-        final_request = (
-            "Now emit the complete client.tsp content in a single ```tsp fenced code block with no extra commentary." \
-            " Ensure proper imports, using statements, namespace, and decorators."
-        )
-        conversation.append({"role": "user", "content": final_request})
-        final_response = await _call(conversation)
-        conversation.append({"role": "assistant", "content": final_response})
+        final_request = "Now emit the complete client.tsp content in a single ```tsp fenced code block with no extra commentary."
+        conversation_history.append({"role": "user", "content": final_request})
+        final_response = await _call(max_tokens=4000)  # Higher limit for full file
+        conversation_history.append({"role": "assistant", "content": final_response})
         # Persist conversation log (simple jsonl)
         convo_path = checkpoint_dir / "conversation.log.jsonl"
         with convo_path.open("w", encoding="utf-8") as fh:
-            for m in conversation:
+            for m in conversation_history:
                 fh.write(json.dumps(m, ensure_ascii=False) + "\n")
         return final_response, base_user_message, checkpoint_records
 
-    async def run_chatmode_on_scenario(self, test_case: Dict[str, Any],
-                                     scenario_spec_path: Path) -> Tuple[str, str]:
-        """
-        Run the chatmode on a specific test scenario.
-        """
-        feedback = test_case.get("feedback", "")
-        language = test_case.get("language", "")
-
-        # Build context from the scenario specification folder
-        context_files = []
-        for tsp_file in scenario_spec_path.rglob("*.tsp"):
-            relative_path = tsp_file.relative_to(scenario_spec_path)
-            content = tsp_file.read_text()
-            context_files.append(f"File: {relative_path}\n```tsp\n{content}\n```")
-
-        context = "\n\n".join(context_files)
-
-        # Create user message with full context
-        user_message = f"""[EVAL_MODE] {feedback}
-
-Context - TypeSpec files in the specification:
-{context}
-
-Please provide the complete client.tsp file content needed to implement this feedback.
-Ensure proper imports, using statements, namespace declaration, and decorator syntax."""
-
-        # Call OpenAI API
-        az_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        az_key = os.getenv("AZURE_OPENAI_API_KEY")
-        std_key = os.getenv("OPENAI_API_KEY")
-
-        if az_endpoint:
-            from openai import AsyncAzureOpenAI
-            if az_key:
-                # Use API key authentication
-                client = AsyncAzureOpenAI(
-                    azure_endpoint=az_endpoint,
-                    api_version=API_VERSION,
-                    api_key=az_key,
-                )
-            else:
-                # Fall back to AAD token provider
-                credential = DefaultAzureCredential()
-                client = AsyncAzureOpenAI(
-                    azure_endpoint=az_endpoint,
-                    api_version=API_VERSION,
-                    azure_ad_token_provider=get_bearer_token_provider(
-                        credential, "https://cognitiveservices.azure.com/.default"
-                    ),
-                )
-        else:
-            # Allow AZURE_OPENAI_API_KEY to stand in as generic OPENAI key if standard key missing
-            effective_key = std_key or az_key
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=effective_key)
-
-        try:
-            response = await client.chat.completions.create(
-                model=MODEL,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": user_message}
-                ],
-                temperature=0.1,
-                max_tokens=2000
-            )
-
-            return response.choices[0].message.content.strip(), user_message
-
-        except Exception as e:
-            return f"Error calling chatmode via OpenAI: {str(e)}", user_message
 
 class TypeSpecCompiler:
     """Handles TypeSpec compilation for validation."""
@@ -458,6 +388,7 @@ class TypeSpecCompiler:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                check=False,  # We check returncode manually below
                 env={**os.environ, "NODE_PATH": str(repo_node_modules)}
             )
 
@@ -468,7 +399,7 @@ class TypeSpecCompiler:
 
         except subprocess.TimeoutExpired:
             return False, "TypeSpec compilation timed out"
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             return False, f"Error running TypeSpec compilation: {str(e)}"
 
 class NewChatmodeEvalRunner:
@@ -504,7 +435,7 @@ class NewChatmodeEvalRunner:
 
         try:
             test_cases = json.loads(test_cases_file.read_text())
-        except Exception as e:
+        except (json.JSONDecodeError, OSError) as e:
             return [TypeSpecTestResult(scenario_path.name, False, f"Invalid test_cases.json: {e}")]
 
         results_root = scenario_path / "results"
@@ -526,8 +457,7 @@ class NewChatmodeEvalRunner:
             raw_dir = per_test_dir / "raw"
             extracted_dir = per_test_dir / "extracted"
             build_dir = per_test_dir / "build"
-            diff_dir = per_test_dir / "diff"
-            for d in (raw_dir, extracted_dir, build_dir, diff_dir):
+            for d in (raw_dir, extracted_dir, build_dir):
                 d.mkdir(parents=True, exist_ok=True)
 
             try:
@@ -557,10 +487,6 @@ class NewChatmodeEvalRunner:
                 client_tsp_content = self._extract_client_tsp_from_response(final_response)
                 extracted_client_file = extracted_dir / "client.tsp"
                 extracted_client_file.write_text(client_tsp_content)
-
-                # Naive expected decorator presence check (placeholder for richer parser)
-                expected_decorators = test_case.get("expected_decorators", []) or []
-                missing_decorators = [d for d in expected_decorators if d not in client_tsp_content]
 
                 # Temp workspace compile
                 with tempfile.TemporaryDirectory(prefix="tsp_eval_") as tmpdir:
@@ -603,18 +529,9 @@ class NewChatmodeEvalRunner:
                 merged_validation["expected_renames"] = validation_spec.get("expected_renames", {})
 
                 # Legacy format fields
-                merged_validation["required_decorators"] = (
-                    validation_spec.get("required_decorators") or
-                    extracted_validation.get("required_decorators", [])
-                )
-                merged_validation["required_imports"] = (
-                    validation_spec.get("required_imports") or
-                    extracted_validation.get("required_imports", [])
-                )
-                merged_validation["required_using"] = (
-                    validation_spec.get("required_using") or
-                    extracted_validation.get("required_using", [])
-                )
+                merged_validation["required_decorators"] = extracted_validation.get("required_decorators", [])
+                merged_validation["required_imports"] = extracted_validation.get("required_imports", [])
+                merged_validation["required_using"] = extracted_validation.get("required_using", [])
                 # forbidden_patterns only come from explicit validation (can't extract from expected)
                 merged_validation["forbidden_patterns"] = validation_spec.get("forbidden_patterns", [])
 
@@ -679,12 +596,12 @@ class NewChatmodeEvalRunner:
             return {}
 
         content = expected_file.read_text()
-        validation = {
+        content = expected_file.read_text()
+        validation: Dict[str, Any] = {
             "required_decorators": [],
             "required_imports": [],
             "required_using": []
         }
-
         # Process line by line to respect OPTIONAL markers
         lines = content.split('\n')
         for line in lines:
@@ -780,6 +697,7 @@ class NewChatmodeEvalRunner:
 
     def _extract_client_tsp_from_response(self, response: str) -> str:
         """Extract client.tsp content from chatmode response (robust multi-block handling)."""
+        # Try to find complete fenced code blocks
         fence_re = re.compile(r"```(?:tsp|typespec)?\s*\n(.*?)```", re.IGNORECASE | re.DOTALL)
         blocks = [b.strip() for b in fence_re.findall(response) if b.strip()]
         selected = None
@@ -789,6 +707,15 @@ class NewChatmodeEvalRunner:
                 break
         if not selected and blocks:
             selected = max(blocks, key=len)
+
+        # If no complete code block found, look for incomplete code block (missing closing fence)
+        if not selected:
+            incomplete_re = re.compile(r"```(?:tsp|typespec)?\s*\n(.*)", re.IGNORECASE | re.DOTALL)
+            match = incomplete_re.search(response)
+            if match:
+                selected = match.group(1).strip()
+
+        # Final fallback: collect lines that look like TypeSpec code
         if not selected:
             collected = []
             for raw in response.splitlines():

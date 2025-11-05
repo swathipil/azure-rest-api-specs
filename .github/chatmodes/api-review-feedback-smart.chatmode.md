@@ -193,7 +193,7 @@ using TypeSpec.Versioning;
 // using TodoService;
 
 @useDependency(TodoService.Versions.v2025_01_01);
-namespace ClientCustomizations;
+namespace ClientCustomizations; // REQUIRED
 
 // Client interface customization
 @client({
@@ -263,7 +263,7 @@ interface TodoClient {
 **Required Structure Elements:**
 1. **Imports**: Must include `@azure-tools/typespec-client-generator-core` and `@typespec/versioning`. Import service files (`./main.tsp`, `./models.tsp`, `./routes.tsp`) ONLY if needed to reference specific types or operations.
 2. **Using statements**: Must include `Azure.ClientGenerator.Core` and `TypeSpec.Versioning`. Add service namespace (e.g., `using ServiceNamespace;`) only if using shortened decorator paths.
-3. **Namespace**: Must declare `namespace ClientCustomizations;`
+3. **Namespace**: MUST declare `namespace ClientCustomizations;`
 4. **Client decorator**: Use `@client` for interface-level customizations
 5. **Augment decorators**: Use `@@clientName`, `@@access`, etc. for element-level customizations (simplified paths when using service namespace)
 
