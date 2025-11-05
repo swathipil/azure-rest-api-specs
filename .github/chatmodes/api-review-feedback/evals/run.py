@@ -236,6 +236,133 @@ class TypeSpecChatmodeRunner:
                 return 0
         return sorted(dict.fromkeys(found), key=key)
 
+    async def run_aggregated_checkpoint_sequence(self, test_cases: List[Dict[str, Any]], scenario_spec_path: Path, checkpoint_dir: Path) -> Tuple[str, str, List[Tuple[str, Any]]]:
+        """Run checkpoints with ALL feedback aggregated into ONE conversation.
+
+        Mimics real user behavior: pasting multiple feedback items at once.
+
+        CHECKPOINT_0: Parse and extract individual feedback items from the combined prompt
+        Then runs regular checkpoints for the aggregated changes.
+
+        Returns: (final_response_text, base_user_message, checkpoint_records)
+        """
+        # Combine all feedback items into numbered list (like a real user would)
+        feedback_items = []
+        for i, tc in enumerate(test_cases, 1):
+            feedback = tc.get("feedback", "") or tc.get("query", "")
+            if feedback:
+                feedback_items.append(f"{i}. {feedback}")
+
+        combined_feedback = "\n".join(feedback_items)
+
+        # Build context listing TypeSpec spec files
+        context_chunks = []
+        for tsp_file in scenario_spec_path.rglob("*.tsp"):
+            rel = tsp_file.relative_to(scenario_spec_path)
+            context_chunks.append(f"File: {rel}\n```tsp\n{tsp_file.read_text()}\n```")
+        context_block = "\n\n".join(context_chunks)
+
+        base_user_message = (
+            f"[EVAL_MODE] Here is the API review feedback to implement:\n\n"
+            f"{combined_feedback}\n\n"
+            f"Context - TypeSpec files in the specification:\n{context_block}\n\n"
+            "Please apply all of the above changes to client.tsp. "
+            "You will be asked for checkpoints sequentially. Respond exactly as instructed for each step."
+        )
+
+        # Model client setup reused across turns
+        client = self._create_openai_client()
+
+        # Track conversation history (user/assistant only, system prompt added per-call like VS Code)
+        conversation_history = [{"role": "user", "content": base_user_message}]
+        checkpoint_records = []
+
+        async def _call(max_tokens: int = 2000) -> str:
+            # Mimic VS Code behavior: system prompt in EVERY API call
+            messages = [{"role": "system", "content": self.system_prompt}] + conversation_history
+            resp = await client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                temperature=0.0,
+                max_tokens=max_tokens,
+            )
+            content = resp.choices[0].message.content
+            return content.strip() if content else ""
+
+        def _parse_json_maybe(text: str) -> Any:
+            text_stripped = text.strip()
+            fenced = re.match(r"```(?:json)?\s*(.*)```", text_stripped, re.DOTALL | re.IGNORECASE)
+            if fenced:
+                text_stripped = fenced.group(1).strip()
+            return json.loads(text_stripped)
+
+        # CHECKPOINT_0: Extract individual feedback items
+        checkpoint_0_request = (
+            "CHECKPOINT_0: Parse the feedback and extract each individual feedback item into a JSON array. "
+            "Respond with ONLY a JSON object in this format:\n"
+            '{"feedback_items": [{"item_number": 1, "feedback": "text", "language": "python|java|csharp|javascript|all"}, ...]}\n'
+            "No commentary, just the JSON."
+        )
+        conversation_history.append({"role": "user", "content": checkpoint_0_request})
+        raw = await _call()
+
+        parsed_checkpoint_0 = None
+        try:
+            parsed_checkpoint_0 = _parse_json_maybe(raw)
+        except (json.JSONDecodeError, KeyError, ValueError):
+            repair_prompt = "Previous output was invalid JSON. Respond again with ONLY valid JSON for CHECKPOINT_0, no commentary."
+            conversation_history.append({"role": "assistant", "content": raw})
+            conversation_history.append({"role": "user", "content": repair_prompt})
+            raw = await _call()
+            try:
+                parsed_checkpoint_0 = _parse_json_maybe(raw)
+            except (json.JSONDecodeError, KeyError, ValueError):
+                parsed_checkpoint_0 = {"_error": "unparseable", "raw": raw}
+
+        conversation_history.append({"role": "assistant", "content": raw})
+        checkpoint_records.append(("CHECKPOINT_0", parsed_checkpoint_0))
+        (checkpoint_dir / "CHECKPOINT_0.json").write_text(json.dumps(parsed_checkpoint_0, indent=2, ensure_ascii=False))
+
+        # Continue with regular checkpoints
+        for cp in self.checkpoints:
+            request_msg = (
+                f"Produce ONLY the JSON object for {cp}. Do not include text before or after. "
+                f"Return a single JSON object (no arrays, no multiple objects)."
+            )
+            conversation_history.append({"role": "user", "content": request_msg})
+            raw = await _call()
+            parsed = None
+            try:
+                parsed = _parse_json_maybe(raw)
+            except (json.JSONDecodeError, KeyError, ValueError):
+                repair_prompt = (
+                    f"Previous output invalid JSON for {cp}. Respond again with ONLY valid JSON for {cp}, no commentary."
+                )
+                conversation_history.append({"role": "assistant", "content": raw})
+                conversation_history.append({"role": "user", "content": repair_prompt})
+                raw = await _call()
+                try:
+                    parsed = _parse_json_maybe(raw)
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    parsed = {"_error": "unparseable", "raw": raw}
+            conversation_history.append({"role": "assistant", "content": raw})
+            checkpoint_records.append((cp, parsed))
+            (checkpoint_dir / f"{cp}.json").write_text(json.dumps(parsed, indent=2, ensure_ascii=False))
+
+        # Ask for final client.tsp
+        final_request = "Now emit the complete client.tsp content in a single ```tsp fenced code block with no extra commentary."
+        conversation_history.append({"role": "user", "content": final_request})
+        final_response = await _call(max_tokens=4000)
+        conversation_history.append({"role": "assistant", "content": final_response})
+
+        # Persist conversation log
+        convo_path = checkpoint_dir / "conversation.log.jsonl"
+        with convo_path.open("w", encoding="utf-8") as fh:
+            for m in conversation_history:
+                fh.write(json.dumps(m, ensure_ascii=False) + "\n")
+
+        return final_response, base_user_message, checkpoint_records
+
     async def run_checkpoint_sequence(self, test_case: Dict[str, Any], scenario_spec_path: Path, checkpoint_dir: Path) -> Tuple[str, str, List[Tuple[str, Any]]]:
         """Phase 1 multi-turn orchestration.
         - Sends base context once.
@@ -421,11 +548,11 @@ class NewChatmodeEvalRunner:
     async def run_test_scenario(self, scenario_path: Path) -> List[TypeSpecTestResult]:
         """Run all test cases in a specific test scenario.
         New logic:
-          - Per test-case artifact directories: results/<testcase>/{raw,extracted,build,diff}
-          - Preserve raw model response
-          - Extract client.tsp content -> extracted/client.tsp
-          - Compile in an isolated temp workspace that copies specification + injected client.tsp
-          - Compare against expected/client.tsp (single expected for now)
+          - Aggregated mode: All feedback items combined into ONE conversation
+          - Single artifact directory: results/aggregated/{raw,extracted,build}
+          - CHECKPOINT_0: Extract individual feedback items
+          - Then regular checkpoints for combined changes
+          - Generate ONE client.tsp with all changes applied
         """
         print(f"\n🧪 Running test scenario: {scenario_path.name}")
 
@@ -441,143 +568,144 @@ class NewChatmodeEvalRunner:
         results_root = scenario_path / "results"
         results_root.mkdir(exist_ok=True)
 
-        scenario_results: List[TypeSpecTestResult] = []
         spec_path = scenario_path / "specification"
         if not spec_path.exists():
             return [TypeSpecTestResult(scenario_path.name, False, "specification folder not found")]
 
-        for test_case in test_cases:
-            if not test_case:
-                continue
-            testcase_name = test_case.get("testcase", "unnamed")
-            safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", testcase_name)
-            print(f"  ⚡ Running test case: {testcase_name}")
+        # Aggregated mode: process ALL test cases in ONE conversation
+        print(f"  📝 Aggregating {len(test_cases)} feedback items into one conversation...")
 
-            per_test_dir = results_root / safe_name
-            raw_dir = per_test_dir / "raw"
-            extracted_dir = per_test_dir / "extracted"
-            build_dir = per_test_dir / "build"
-            for d in (raw_dir, extracted_dir, build_dir):
-                d.mkdir(parents=True, exist_ok=True)
+        aggregated_dir = results_root / "aggregated"
+        raw_dir = aggregated_dir / "raw"
+        extracted_dir = aggregated_dir / "extracted"
+        build_dir = aggregated_dir / "build"
+        for d in (raw_dir, extracted_dir, build_dir):
+            d.mkdir(parents=True, exist_ok=True)
 
-            try:
-                checkpoint_dir = raw_dir / "checkpoints"
-                checkpoint_dir.mkdir(parents=True, exist_ok=True)
-                # Phase 1 multi-turn sequence
-                final_response, base_user_message, checkpoint_records = await self.chatmode_runner.run_checkpoint_sequence(
-                    test_case, spec_path, checkpoint_dir
-                )
+        try:
+            checkpoint_dir = raw_dir / "checkpoints"
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-                # Build full raw response including all checkpoint outputs and final response
-                full_response_parts = []
+            # Run aggregated checkpoint sequence (includes CHECKPOINT_0)
+            final_response, base_user_message, checkpoint_records = await self.chatmode_runner.run_aggregated_checkpoint_sequence(
+                test_cases, spec_path, checkpoint_dir
+            )
 
-                for cp_name, cp_data in checkpoint_records:
-                    full_response_parts.append(f"=== {cp_name} OUTPUT ===\n")
-                    full_response_parts.append(json.dumps(cp_data, indent=2, ensure_ascii=False))
-                    full_response_parts.append("\n\n")
+            # Build full raw response including all checkpoint outputs and final response
+            full_response_parts = []
+            for cp_name, cp_data in checkpoint_records:
+                full_response_parts.append(f"=== {cp_name} OUTPUT ===\n")
+                full_response_parts.append(json.dumps(cp_data, indent=2, ensure_ascii=False))
+                full_response_parts.append("\n\n")
 
-                full_response_parts.append("=== FINAL CLIENT.TSP RESPONSE ===\n")
-                full_response_parts.append(final_response)
+            full_response_parts.append("=== FINAL CLIENT.TSP RESPONSE ===\n")
+            full_response_parts.append(final_response)
 
-                (raw_dir / "response.txt").write_text("".join(full_response_parts))
-                (raw_dir / "user_prompt.md").write_text(f"```text\n{base_user_message}\n```\n")
-                (raw_dir / "system_prompt.md").write_text(f"```text\n{self.chatmode_runner.system_prompt}\n```\n")
+            (raw_dir / "response.txt").write_text("".join(full_response_parts))
+            (raw_dir / "user_prompt.md").write_text(f"```text\n{base_user_message}\n```\n")
+            (raw_dir / "system_prompt.md").write_text(f"```text\n{self.chatmode_runner.system_prompt}\n```\n")
 
-                # Extract only the client.tsp code block from final response
-                client_tsp_content = self._extract_client_tsp_from_response(final_response)
-                extracted_client_file = extracted_dir / "client.tsp"
-                extracted_client_file.write_text(client_tsp_content)
+            # Extract only the client.tsp code block from final response
+            client_tsp_content = self._extract_client_tsp_from_response(final_response)
+            extracted_client_file = extracted_dir / "client.tsp"
+            extracted_client_file.write_text(client_tsp_content)
 
-                # Temp workspace compile
-                with tempfile.TemporaryDirectory(prefix="tsp_eval_") as tmpdir:
-                    tmp_spec = Path(tmpdir) / "spec"
-                    shutil.copytree(spec_path, tmp_spec)
-                    injected_client_path = tmp_spec / "client.tsp"
-                    injected_client_path.write_text(client_tsp_content)
+            # Temp workspace compile
+            with tempfile.TemporaryDirectory(prefix="tsp_eval_") as tmpdir:
+                tmp_spec = Path(tmpdir) / "spec"
+                shutil.copytree(spec_path, tmp_spec)
+                injected_client_path = tmp_spec / "client.tsp"
+                injected_client_path.write_text(client_tsp_content)
 
-                    compilation_success, compilation_output = TypeSpecCompiler.compile_typespec_project(tmp_spec)
-                    (build_dir / "compile.txt").write_text(compilation_output)
+                compilation_success, compilation_output = TypeSpecCompiler.compile_typespec_project(tmp_spec)
+                (build_dir / "compile.txt").write_text(compilation_output)
 
-                    # Copy OpenAPI output for validation
-                    openapi_output_dir = build_dir / "openapi"
-                    openapi_output_dir.mkdir(exist_ok=True)
+                # Copy OpenAPI output for validation
+                openapi_output_dir = build_dir / "openapi"
+                openapi_output_dir.mkdir(exist_ok=True)
 
-                    # Find and copy all generated OpenAPI/Swagger files
-                    for openapi_file in tmp_spec.rglob("*.json"):
-                        if any(part in openapi_file.parts for part in ["tsp-output", "data-plane", "resource-manager"]):
-                            # Copy to build/openapi with relative path preserved
-                            rel_path = openapi_file.relative_to(tmp_spec)
-                            dest_file = openapi_output_dir / rel_path
-                            dest_file.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(openapi_file, dest_file)
+                # Find and copy all generated OpenAPI/Swagger files
+                for openapi_file in tmp_spec.rglob("*.json"):
+                    if any(part in openapi_file.parts for part in ["tsp-output", "data-plane", "resource-manager"]):
+                        # Copy to build/openapi with relative path preserved
+                        rel_path = openapi_file.relative_to(tmp_spec)
+                        dest_file = openapi_output_dir / rel_path
+                        dest_file.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(openapi_file, dest_file)
 
-                # Semantic validation
-                # Hybrid approach: extract from expected/client.tsp, merge with explicit validation
+            # Semantic validation for aggregated mode:
+            # Merge validation requirements from ALL test cases
+            expected_file = scenario_path / "expected" / "client.tsp"
+            merged_validation = {
+                "expected_renames": {},
+                "required_decorators": [],
+                "required_imports": [],
+                "required_using": [],
+                "forbidden_patterns": []
+            }
+
+            # Collect validation from all test cases
+            for test_case in test_cases:
                 validation_spec = test_case.get("validation", {})
-                expected_file = scenario_path / "expected" / "client.tsp"
 
-                # If expected file exists AND no expected_renames provided, extract validation from it
-                extracted_validation = {}
-                if expected_file.exists() and not validation_spec.get("expected_renames"):
-                    extracted_validation = self._extract_validation_from_expected(expected_file)
-                    print(f"    📋 Extracted validation rules from expected/client.tsp")
+                # Merge expected_renames
+                if "expected_renames" in validation_spec:
+                    merged_validation["expected_renames"].update(validation_spec["expected_renames"])
 
-                # Merge: explicit validation takes precedence, add extracted items if not explicitly defined
-                merged_validation = {}
+                # Merge other validation criteria
+                for key in ["required_decorators", "required_imports", "required_using", "forbidden_patterns"]:
+                    if key in validation_spec:
+                        merged_validation[key].extend(validation_spec[key])
 
-                # expected_renames (NEW FORMAT - takes precedence over decorator extraction)
-                merged_validation["expected_renames"] = validation_spec.get("expected_renames", {})
-
-                # Legacy format fields
+            # Extract validation from expected file if exists
+            if expected_file.exists() and not merged_validation["expected_renames"]:
+                extracted_validation = self._extract_validation_from_expected(expected_file)
+                print(f"    📋 Extracted validation rules from expected/client.tsp")
                 merged_validation["required_decorators"] = extracted_validation.get("required_decorators", [])
                 merged_validation["required_imports"] = extracted_validation.get("required_imports", [])
                 merged_validation["required_using"] = extracted_validation.get("required_using", [])
-                # forbidden_patterns only come from explicit validation (can't extract from expected)
-                merged_validation["forbidden_patterns"] = validation_spec.get("forbidden_patterns", [])
 
-                # Must have at least one validation source
-                has_validation = (
-                    merged_validation["expected_renames"] or
-                    merged_validation["required_decorators"] or
-                    expected_file.exists()
-                )
-                if not has_validation:
-                    result = TypeSpecTestResult(
-                        testcase_name,
-                        False,
-                        "Test must define 'validation' block or provide expected/client.tsp"
-                    )
-                    scenario_results.append(result)
-                    print(f"    ❌ {testcase_name}: {result.message}")
-                    continue
-
-                semantic_issues = self._validate_semantic(
-                    client_tsp_content,
-                    merged_validation,
-                    compilation_success
-                )
-
-                success = len(semantic_issues) == 0
-                messages = semantic_issues if semantic_issues else ["Test passed: semantic validation successful"]
-
+            # Must have at least one validation source
+            has_validation = (
+                merged_validation["expected_renames"] or
+                merged_validation["required_decorators"] or
+                expected_file.exists()
+            )
+            if not has_validation:
                 result = TypeSpecTestResult(
-                    testcase_name,
-                    success,
-                    "; ".join(messages),
-                    str(extracted_client_file),
-                    None,
-                    diff=None,
-                    compilation_result=compilation_output
+                    scenario_path.name,
+                    False,
+                    "Aggregated test must have validation rules from test cases or expected/client.tsp"
                 )
-                scenario_results.append(result)
-                status_icon = "✅" if success else "❌"
-                print(f"    {status_icon} {testcase_name}: {result.message}")
-            except Exception as e:
-                err_result = TypeSpecTestResult(testcase_name, False, f"Test execution error: {e}")
-                scenario_results.append(err_result)
-                print(f"    ❌ {testcase_name}: ERROR - {e}")
+                return [result]
 
-        return scenario_results
+            semantic_issues = self._validate_semantic(
+                client_tsp_content,
+                merged_validation,
+                compilation_success
+            )
+
+            success = len(semantic_issues) == 0
+            messages = semantic_issues if semantic_issues else ["All feedback applied successfully"]
+
+            result = TypeSpecTestResult(
+                scenario_path.name,
+                success,
+                "; ".join(messages),
+                str(extracted_client_file),
+                None,
+                diff=None,
+                compilation_result=compilation_output
+            )
+
+            status_icon = "✅" if success else "❌"
+            print(f"    {status_icon} Aggregated result: {result.message}")
+            return [result]
+
+        except Exception as e:
+            err_result = TypeSpecTestResult(scenario_path.name, False, f"Aggregated test execution error: {e}")
+            print(f"    ❌ Aggregated test: ERROR - {e}")
+            return [err_result]
 
     def _extract_validation_from_expected(self, expected_file: Path) -> Dict[str, Any]:
         """Extract validation requirements from expected/client.tsp file.
