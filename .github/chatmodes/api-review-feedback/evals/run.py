@@ -534,11 +534,10 @@ class NewChatmodeEvalRunner:
 
     async def run_test_scenario(self, scenario_path: Path) -> List[TypeSpecTestResult]:
         """Run all test cases in a specific test scenario.
-        Aggregated mode:
-          - All feedback items combined into ONE conversation
-          - Single artifact directory: results/aggregated/{raw,extracted,build}
-          - Regular checkpoints for combined changes (if eval_mode enabled)
-          - Generate ONE client.tsp with all changes applied
+
+        All feedback items are combined into ONE conversation.
+        Generates ONE client.tsp with all changes applied.
+        Results are saved to: results/{raw,extracted,build}
         """
         print(f"\n🧪 Running test scenario: {scenario_path.name}")
 
@@ -567,10 +566,9 @@ class NewChatmodeEvalRunner:
         # Aggregated mode: process ALL test cases in ONE conversation
         print(f"  📝 Aggregating {len(test_cases)} feedback items into one conversation...")
 
-        aggregated_dir = results_root / "aggregated"
-        raw_dir = aggregated_dir / "raw"
-        extracted_dir = aggregated_dir / "extracted"
-        build_dir = aggregated_dir / "build"
+        raw_dir = results_root / "raw"
+        extracted_dir = results_root / "extracted"
+        build_dir = results_root / "build"
         checkpoint_dir = raw_dir / "checkpoints"
 
         try:
