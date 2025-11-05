@@ -237,7 +237,7 @@ class TypeSpecChatmodeRunner:
                 return 0
         return sorted(dict.fromkeys(found), key=key)
 
-    async def run_aggregated_checkpoint_sequence(self, test_cases: List[Dict[str, Any]], scenario_spec_path: Path, checkpoint_dir: Path) -> Tuple[str, str, List[Tuple[str, Any]]]:
+    async def run_aggregated_checkpoint_sequence(self, test_cases: List[Dict[str, Any]], scenario_spec_path: Path, raw_dir: Path, checkpoint_dir: Path) -> Tuple[str, str, List[Tuple[str, Any]]]:
         """Run checkpoints with ALL feedback aggregated into ONE conversation.
 
         Mimics real user behavior: pasting multiple feedback items at once.
@@ -245,8 +245,9 @@ class TypeSpecChatmodeRunner:
 
         Returns: (final_response_text, base_user_message, checkpoint_records)
         """
-        # Save system prompt at the beginning
-        (checkpoint_dir / "system_prompt.md").write_text(f"```text\n{self.system_prompt}\n```\n")
+        # Save system prompt at the beginning (directly under raw/)
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        (raw_dir / "system_prompt.md").write_text(f"```text\n{self.system_prompt}\n```\n")
 
         # Combine all feedback items into numbered list (like a real user would)
         feedback_items = []
@@ -273,8 +274,8 @@ class TypeSpecChatmodeRunner:
             "You will be asked for checkpoints sequentially. Respond exactly as instructed for each step."
         )
 
-        # Save user prompt at the beginning
-        (checkpoint_dir / "user_prompt.md").write_text(f"```text\n{base_user_message}\n```\n")
+        # Save user prompt at the beginning (directly under raw/)
+        (raw_dir / "user_prompt.md").write_text(f"```text\n{base_user_message}\n```\n")
 
         # Model client setup reused across turns
         client = self._create_openai_client()
@@ -326,6 +327,8 @@ class TypeSpecChatmodeRunner:
                     parsed = {"_error": "unparseable", "raw": raw}
             conversation_history.append({"role": "assistant", "content": raw})
             checkpoint_records.append((cp, parsed))
+            # Save checkpoint JSON (create checkpoints dir if needed)
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
             (checkpoint_dir / f"{cp}.json").write_text(json.dumps(parsed, indent=2, ensure_ascii=False))
 
         # Ask for final client.tsp
@@ -334,8 +337,8 @@ class TypeSpecChatmodeRunner:
         final_response = await _call(max_tokens=4000)
         conversation_history.append({"role": "assistant", "content": final_response})
 
-        # Persist conversation log
-        convo_path = checkpoint_dir / "conversation.log.jsonl"
+        # Persist conversation log (directly under raw/)
+        convo_path = raw_dir / "conversation.log.jsonl"
         with convo_path.open("w", encoding="utf-8") as fh:
             for m in conversation_history:
                 fh.write(json.dumps(m, ensure_ascii=False) + "\n")
@@ -568,16 +571,12 @@ class NewChatmodeEvalRunner:
         raw_dir = aggregated_dir / "raw"
         extracted_dir = aggregated_dir / "extracted"
         build_dir = aggregated_dir / "build"
-        for d in (raw_dir, extracted_dir, build_dir):
-            d.mkdir(parents=True, exist_ok=True)
+        checkpoint_dir = raw_dir / "checkpoints"
 
         try:
-            checkpoint_dir = raw_dir / "checkpoints"
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
             # Run aggregated checkpoint sequence
             final_response, base_user_message, checkpoint_records = await self.chatmode_runner.run_aggregated_checkpoint_sequence(
-                test_cases, spec_path, checkpoint_dir
+                test_cases, spec_path, raw_dir, checkpoint_dir
             )
 
             # Build full raw response including all checkpoint outputs and final response
@@ -594,16 +593,17 @@ class NewChatmodeEvalRunner:
 
             # Extract only the client.tsp code block from final response
             client_tsp_content = self._extract_client_tsp_from_response(final_response)
+            extracted_dir.mkdir(parents=True, exist_ok=True)
             extracted_client_file = extracted_dir / "client.tsp"
             extracted_client_file.write_text(client_tsp_content)
 
-            # TODO: SKIPPING COMPILE FOR NOW UNTIL EMITTER DEPENDENCIES CAN BE ADDED
             # Compile the extracted client.tsp in the context of the specification directory
             # This creates a temp copy under build/ with the client.tsp injected to resolve all imports
-            #compilation_success, compilation_output = TypeSpecCompiler.compile_client_tsp_in_context(
-            #    client_tsp_content, spec_path, build_dir
-            #)
-            #(build_dir / "compile.txt").write_text(compilation_output)
+            compilation_success, compilation_output = TypeSpecCompiler.compile_client_tsp_in_context(
+                client_tsp_content, spec_path, build_dir
+            )
+            build_dir.mkdir(parents=True, exist_ok=True)
+            (build_dir / "compile.txt").write_text(compilation_output)
             compilation_success = True
             compilation_output = ""
 
