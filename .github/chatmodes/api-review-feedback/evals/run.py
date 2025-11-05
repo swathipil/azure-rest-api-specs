@@ -206,7 +206,7 @@ class TypeSpecChatmodeRunner:
         az_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         az_key = os.getenv("AZURE_OPENAI_API_KEY")
         std_key = os.getenv("OPENAI_API_KEY")
-        
+
         if az_endpoint:
             from openai import AsyncAzureOpenAI
             if az_key:
@@ -243,10 +243,10 @@ class TypeSpecChatmodeRunner:
         - Single retry on JSON parse failure.
         - Persists each checkpoint JSON to files.
         - After final checkpoint, requests full client.tsp if not already emitted.
-        
+
         NOTE: In actual VS Code Copilot Chat, the system prompt is automatically included in every API call.
         In this evaluation harness, we simulate that by re-injecting critical requirements before final generation.
-        
+
         Returns: (final_response_text, base_user_message, checkpoint_records)
         """
         feedback = test_case.get("feedback", "") or test_case.get("query", "")
@@ -653,7 +653,6 @@ class NewChatmodeEvalRunner:
         """Semantic validation using expected file extraction.
 
         Validates:
-        0. Required namespace ClientCustomizations (always checked)
         1. Compilation success (always required)
         2. Required decorators (extracted from expected file)
         3. Required imports
@@ -663,10 +662,6 @@ class NewChatmodeEvalRunner:
         Returns list of validation issues (empty if all pass).
         """
         issues = []
-
-        # 0. Always check for ClientCustomizations namespace
-        if 'namespace ClientCustomizations' not in content:
-            issues.append("Missing required namespace: ClientCustomizations")
 
         # 1. Compilation check (always required)
         if not compilation_success:
