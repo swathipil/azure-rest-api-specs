@@ -21,7 +21,7 @@ Output: `{"feedback_type": "method_renaming|client_renaming|property_renaming|vi
 Output: `{"sdk_element": "method_name", "typespec_path": "ServiceNamespace.Interface.methodName"}`
 
 #### CHECKPOINT_4: Decorator Selection
-Output: `{"decorator": "@@clientName|@@access|@@usage|@@alternateType|@@useSystemTextJsonConverter|@@clientNamespace|@@flattenProperty|@@scope", "parameters": ["param1", "param2"], "usage_frequency": "primary|secondary|specialized", "reasoning": "Explanation for decorator choice"}`
+Output: `{"decorator": "@@clientName|@@access|@@usage|@@alternateType|@@useSystemTextJsonConverter|@@clientNamespace|@@scope", "parameters": ["param1", "param2"], "usage_frequency": "primary|secondary|specialized", "reasoning": "Explanation for decorator choice"}`
 
 #### CHECKPOINT_5: Code Generation
 Output: `{"generated_code": "@@clientName(path, \"targetName\", \"language\");"}`
@@ -39,8 +39,8 @@ Output: `{"generated_code": "@@clientName(path, \"targetName\", \"language\");"}
 **Language Detection:**
 Identify the target SDK language from feedback patterns:
 - "In the Python SDK..." → python
-- "Java client should..." → java  
-- "For C#..." → csharp
+- "Java client should..." → java
+- "For C#..." / "For .NET..." → csharp
 - "The JavaScript..." → javascript
 - "All SDKs..." → all languages
 
@@ -62,7 +62,6 @@ Categorize the request type:
 
 **Specialized Categories:**
 - **Package/Namespace**: "package name should be X/change namespace to X" → `@@clientNamespace`
-- **Property Flattening**: "flatten properties object" → `@@flattenProperty`
 - **Language Exclusion**: "exclude from Java/C#" → `@@scope`
 - **Method Overrides**: "override method behavior" → `@@override`
 - **Convenience APIs**: "add/remove convenience method" → `@@convenientAPI`
@@ -121,7 +120,6 @@ Target names MUST use TypeSpec conventions, NOT target language conventions:
 
 **Specialized Decorators (Used by 10+ services):**
 - **Package naming**: `@@clientNamespace(namespace, "custom.package.name", "language")`
-- **Property flattening**: `@@flattenProperty(model.properties)`
 
 **Advanced Decorators (Used by <10 services):**
 - **Language scoping**: `@@scope(operation, "!java, !csharp")`
@@ -165,9 +163,6 @@ Target names MUST use TypeSpec conventions, NOT target language conventions:
   "java"
 );
 
-// Property flattening (11 services)
-@@flattenProperty(ResourceModel.properties);
-
 // Language exclusion scoping (6 services)
 @@scope(OperationResults.get, "!java, !csharp");
 ```
@@ -187,11 +182,17 @@ Target names MUST use TypeSpec conventions, NOT target language conventions:
 ```tsp
 import "@azure-tools/typespec-client-generator-core";
 import "@typespec/versioning";
+// Import service files ONLY as needed to reference types/operations:
+// import "./main.tsp";     // Example import: referencing service definitions
+// import "./models.tsp";   // Example import: referencing models from separate file
+// import "./routes.tsp";   // Example import: referencing operations from separate file
 
 using Azure.ClientGenerator.Core;
 using TypeSpec.Versioning;
+// Add using statement for service namespace if needed for shorter paths:
+// using TodoService;
 
-@useDependency(TodoService.Versions.v1.0.0`)
+@useDependency(TodoService.Versions.v2025_01_01);
 namespace ClientCustomizations;
 
 // Client interface customization
@@ -203,19 +204,23 @@ interface TodoClient {
   getAllTodos is TodoService.Operations.listTodos;
 }
 
-// Operation renaming examples
-@@clientName(TodoService.Operations.listTodos, "getTodos", "python");
-@@clientName(TodoService.Operations.createTodo, "addTodo", "java");
-@@clientName(TodoService.Operations.deleteTodo, "removeTodo", "csharp");
+// Operation renaming examples (using namespace shortens paths)
+@@clientName(Operations.listTodos, "getTodos", "python");
+@@clientName(Operations.createTodo, "addTodo", "java");
+@@clientName(Operations.deleteTodo, "removeTodo", "csharp");
 
 // Client class renaming
 @@clientName(TodoService, "TaskManager", "java");
 @@clientName(TodoService, "TodoClient", "python");
 
-// Property renaming
+// Property renaming (using namespace shortens model paths)
 @@clientName(Todo.displayName, "title", "python");
 @@clientName(Todo.isCompleted, "isDone", "csharp");
 @@clientName(User.emailAddress, "email", "java");
+
+// Parameter renaming
+@@clientName(Operations.createTodo::parameters.request, "todoRequest", "python");
+@@clientName(Operations.searchTodos::parameters.query, "searchQuery", "java");
 
 // Model renaming
 @@clientName(TodoItem, "Task", "csharp");
@@ -245,10 +250,6 @@ interface TodoClient {
 @@clientNamespace(TodoService, "com.azure.todo", "java");
 @@clientNamespace(TodoService, "Azure.Todo", "csharp");
 
-// Property flattening
-@@flattenProperty(ResourceModel.properties);
-@@flattenProperty(ConfigurationSettings.options);
-
 // Language scoping
 @@scope(TodoService.Operations.experimentalFeature, "!java, !csharp");
 @@scope(DebugOperations.getInternalState, "python");
@@ -260,15 +261,15 @@ interface TodoClient {
 ```
 
 **Required Structure Elements:**
-1. **Imports**: Must include `@azure-tools/typespec-client-generator-core` and `@typespec/versioning`
-2. **Using statements**: Must include `Azure.ClientGenerator.Core` and `TypeSpec.Versioning`
+1. **Imports**: Must include `@azure-tools/typespec-client-generator-core` and `@typespec/versioning`. Import service files (`./main.tsp`, `./models.tsp`, `./routes.tsp`) ONLY if needed to reference specific types or operations.
+2. **Using statements**: Must include `Azure.ClientGenerator.Core` and `TypeSpec.Versioning`. Add service namespace (e.g., `using ServiceNamespace;`) only if using shortened decorator paths.
 3. **Namespace**: Must declare `namespace ClientCustomizations;`
 4. **Client decorator**: Use `@client` for interface-level customizations
-5. **Augment decorators**: Use `@@clientName`, `@@access`, etc. for element-level customizations
+5. **Augment decorators**: Use `@@clientName`, `@@access`, etc. for element-level customizations (simplified paths when using service namespace)
 
 **CRITICAL RULES:**
 - ✅ **ALWAYS** add client customizations to `client.tsp` file
-- ❌ **NEVER** modify `main.tsp` for client customizations
+- ❌ **NEVER** modify `main.tsp` or other service definition files for client customizations
 - ✅ **ALWAYS** run `tsp compile .` after making changes to verify compilation
 - ✅ **ALWAYS** use proper imports and namespace structure in `client.tsp`
 - ✅ **ALWAYS** use TypeSpec naming conventions (camelCase for operations/properties, PascalCase for interfaces/models)
@@ -306,10 +307,6 @@ interface TodoClient {
 ### System JSON Converter
 **Feedback**: "Use system text JSON converter for event data in C#"
 **Implementation**: `@@useSystemTextJsonConverter(EventDataModel, "csharp");`
-
-### Property Flattening
-**Feedback**: "Flatten the properties object in the generated SDK"
-**Implementation**: `@@flattenProperty(ResourceModel.properties);`
 
 ### Language Scoping
 **Feedback**: "Exclude this operation from Java and C# SDKs"  

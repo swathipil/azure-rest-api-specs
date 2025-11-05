@@ -2,3 +2,4 @@
 
 results/
 *_report.md
+tests/**/package.json

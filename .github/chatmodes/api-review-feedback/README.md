@@ -22,7 +22,8 @@ python run.py
   ```bash
   npm install -g @typespec/compiler
   ```
-  - or 
+
+- One of:
 Create a local `.env` with the following environment variables:
 
   ```bash
@@ -85,12 +86,74 @@ Aggregate summary lives in: `tests/test_report.md`.
 
 ## What Counts as Pass
 
-1. Semantic match (imports/using/namespace/decorators) with expected `client.tsp`
-2. Successful `tsp compile` in isolated temp workspace (client injected)
-3. All `expected_decorators` (if listed in test case) present
+Tests use **semantic validation** (not exact file matching):
+
+0. `namespace ClientCustomizations;` is present (always required)
+1. Compilation success in isolated temp workspace (always required)
+2. Required decorators present (with flexible path matching - handles both `Type` and `Namespace.Type`)
+3. Required imports and using statements present
+4. No forbidden patterns (e.g., old snake_case names)
+
+### Test Format
+
+Tests use **format-agnostic validation** that checks what the TypeSpec actually does, not how it's written.
+
+**Recommended: Use `expected_renames` format**
+
+```json
+{
+  "testcase": "example",
+  "feedback": "Rename property X to Y in Python",
+  "validation": {
+    "expected_renames": {
+      "python": {
+        "AnswersOptions.confidenceScoreThreshold": "confidenceThreshold",
+        "ShortAnswerOptions.confidenceScoreThreshold": "confidenceThreshold"
+      }
+    },
+    "forbidden_patterns": ["old_snake_case_name"]
+  }
+}
+```
+
+**How it works:**
+
+- Parses the generated `client.tsp` to extract ALL `@@clientName` decorators
+- Normalizes paths (handles both `Model.property` and `Namespace.Model.property`)
+- Validates: "Is property X renamed to Y in language Z?"
+- **Format-agnostic**: doesn't care about whitespace, fully-qualified paths, file structure, etc.
+
+#### Alternative: Extract from expected file (legacy)
+
+Create `expected/client.tsp` and omit `expected_renames`:
+
+```typespec
+import "@azure-tools/typespec-client-generator-core";
+using Azure.ClientGenerator.Core;
+
+namespace ClientCustomizations;
+
+@@clientName(Model.property, "newName", "python");
+@@clientName(Model.anotherProperty, "anotherName", "python");  // OPTIONAL
+```
+
+Lines marked with `// OPTIONAL` are not validated.
+
+**Notes**:
+
+- `namespace ClientCustomizations;` and compilation success are always required (checked automatically)
+- Decorator validation always allows fully-qualified namespace paths (e.g., `Namespace.Model.property`) by default.
+- `language` field is optional and can be:
+  - Omitted (for decorators without language parameter)
+  - A single string: `"python"`
+  - A list of strings: `["python", "java"]` (for multiple languages)
+- Use `// OPTIONAL` comments in expected file to mark decorators that may or may not be generated
 
 ## Common Issues & Fixes
 
 | Issue | Fix |
 |-------|-----|
-| Missing decorators flagged | Adjust prompt or refine chatmode logic; harness looks for literal substrings. |
+| Cannot find chatmode file | Ensure `api-review-feedback-smart.chatmode.md` exists at `.github/chatmodes/` root level. |
+| Compilation schema error | The harness auto‑writes a minimal `tspconfig.yaml`; verify emit plugin spelling. |
+| Empty `client.tsp` extracted | Model only emitted checkpoint JSON. (Multi‑turn orchestration active) |
+| Test fails but output looks correct | Check validation rules: decorator may use fully-qualified paths vs short paths. Both are valid. |
