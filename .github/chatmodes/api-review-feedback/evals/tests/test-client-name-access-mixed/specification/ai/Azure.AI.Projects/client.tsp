@@ -66,8 +66,3 @@ using Azure.ClientGenerator.Core;
 @@clientName(Azure.AI.Projects.Indexes.getVersion, "getIndex", "csharp");
 @@clientName(Azure.AI.Projects.Indexes.listLatest, "listIndexes", "csharp");
 @@clientName(Azure.AI.Projects.Indexes.listVersions, "listIndexVersions", "csharp");
-
-// Make these two internal, since all SDKs hand-write a single public method with boolean "includeCredentials"
-// input parameter that calls either on these two.
-@@access(Azure.AI.Projects.Connections.get, Access.internal);
-@@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);

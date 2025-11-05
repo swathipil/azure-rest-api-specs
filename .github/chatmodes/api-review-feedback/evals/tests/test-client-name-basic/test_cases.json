@@ -4,6 +4,6 @@
     "description": "Rename confidence_score_threshold to confidence_score in Python SDK",
     "feedback": "In the Python SDK, rename the ivar confidence_score_threshold on AnswersOptions and ShortAnswerOptions to confidence_threshold.",
     "language": "python",
-    "tags": ["property_renaming", "python", "question_answering"]
+    "tags": ["client_name", "model_property", "python", "question_answering"]
     }
 ]

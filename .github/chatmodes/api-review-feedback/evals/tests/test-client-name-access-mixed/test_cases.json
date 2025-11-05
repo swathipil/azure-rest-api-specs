@@ -4,6 +4,13 @@
     "description": "Rename EntraIDCredentials to AIProjectConnectionEntraIdCredential for C# SDK",
     "feedback": "In the C# SDK, rename the type EntraIDCredentials to AIProjectConnectionEntraIdCredential (note: 'Id' not 'ID' per .NET conventions).",
     "language": "csharp",
-    "tags": ["type_renaming", "csharp", "ai_projects"]
+    "tags": ["client_name", "model", "csharp", "ai_projects"]
+  },
+  {
+    "testcase": "csharp_internal_get_methods",
+    "description": "Set Get methods to internal in AIProjectClient.GetAIProjectConnectionsOperationsClient for C#",
+    "feedback": "For C#, in Azure.AI.Projects.AIProjectClient.GetAIProjectConnectionsOperationsClient: set all of the Get methods to internal.",
+    "language": "csharp",
+    "tags": ["access", "operations", "csharp", "ai_projects"]
   }
 ]
