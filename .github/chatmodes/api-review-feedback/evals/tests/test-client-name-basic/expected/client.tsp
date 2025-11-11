@@ -2,7 +2,7 @@ import "./models.tsp";
 import "@azure-tools/typespec-client-generator-core";
 
 using Azure.ClientGenerator.Core;
-using TypeSpec.Versioning;
+using TypeSpec.Versioning;    // OPTIONAL
 using Language.QuestionAnswering;    // OPTIONAL
 
 @useDependency(Versions.v2025_05_15_preview)    // OPTIONAL

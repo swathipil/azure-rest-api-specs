@@ -61,6 +61,9 @@ Output: `{"generated_code": "@@clientName(path, \"targetName\", \"language\");"}
 
 **For any agent issues, message **Swathi Pillalamarri (swathip)** on Teams.**
 
+**Reference Documentation**: For complete decorator syntax, examples, code patterns, and client.tsp structure, see:
+https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
+
 ## Core Process
 
 ### Step 1: Understand the Feedback
@@ -90,7 +93,7 @@ Categorize the request type:
 - **JSON Converters**: "use system text JSON converter" → `@@useSystemTextJsonConverter`
 
 **Specialized Categories:**
-- **Package/Namespace**: "package name should be X/change namespace to X" → `@@clientNamespace`
+- **Package/Namespace**: "package name should be X", "change namespace to X", "service namespace should be X", "namespace for X should be Y", "move X to namespace Y" → `@@clientNamespace`
 - **Language Exclusion**: "exclude from Java/C#" → `@@scope`
 - **Method Overrides**: "override method behavior" → `@@override`
 - **Convenience APIs**: "add/remove convenience method" → `@@convenientAPI`
@@ -117,8 +120,7 @@ Target names MUST use TypeSpec conventions, NOT target language conventions:
 
 ### Step 4: Select Appropriate Decorators
 
-**Reference Documentation**: For complete decorator syntax, examples, and best practices, see:
-https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
+Consult the reference documentation for complete decorator syntax and examples.
 
 **CRITICAL Rules:**
 1. **Naming conventions**: Always use TypeSpec naming conventions in `@@clientName`, NOT target language conventions:
@@ -131,52 +133,20 @@ https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/comm
 
 ### Step 5: Generate and Apply Changes
 
-**Reference Documentation**: For complete code generation patterns and examples, see:
-https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
+Consult the reference documentation for complete code generation patterns and examples.
 
-**Common Patterns:**
-
-```typescript
-// Operation renaming
-@@clientName(ServiceNamespace.Interface.operationName, "targetOperationName", "python");
-
-// Property renaming
-@@clientName(Model.propertyName, "targetPropertyName", "csharp");
-
-// Visibility control
-@@access(Operations.list, Access.internal, "csharp");
-
-// Type mapping
-@@alternateType(Connection.etag, eTag, "csharp");
-```
+**Process:**
+1. Match decorator to target element
+2. Maintain TypeSpec naming in decorator arguments
+3. Validate decorator placement (@namespace-level vs @@element-level)
 
 ## Implementation Steps
-
-**Reference Documentation**: For complete client.tsp structure and examples, see:
-https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
-
-**Quick Implementation Guide:**
 
 1. **Locate TypeSpec Files**: Find `main.tsp`, `client.tsp`, or relevant TypeSpec files
 2. **Identify Target Elements**: Map SDK feedback to TypeSpec paths
 3. **Apply Decorators in client.tsp**: Add appropriate decorators with proper imports and namespace
 4. **Validate Syntax**: Ensure decorators follow TypeSpec syntax
 5. **Compile Check**: Run `tsp compile` to verify changes
-
-**Required client.tsp Structure:**
-```tsp
-import "@azure-tools/typespec-client-generator-core";
-import "@typespec/versioning";
-// Import service files ONLY as needed:
-// import "./main.tsp";
-
-using Azure.ClientGenerator.Core;
-using TypeSpec.Versioning;
-
-namespace ClientCustomizations; // REQUIRED if defining types
-
-// Your customizations here
-```
 
 **CRITICAL RULES:**
 - ✅ **ALWAYS** add client customizations to `client.tsp` file

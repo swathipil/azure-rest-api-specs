@@ -1,22 +1,15 @@
 [
   {
-    "testcase": "java_client_namespace",
-    "description": "Set Client namespace to com.azure.ai.openai for Java",
-    "feedback": "For Java, the Client namespace should be 'com.azure.ai.openai'.",
-    "language": "java",
-    "tags": ["client_namespace", "java", "openai"]
-  },
-  {
-    "testcase": "java_openai_service_namespace",
-    "description": "Set Azure.OpenAI service namespace to com.azure.ai.openai for Java",
-    "feedback": "For Java, the Azure.OpenAI service namespace should be 'com.azure.ai.openai'.",
-    "language": "java",
-    "tags": ["client_namespace", "java", "openai"]
-  },
-  {
     "testcase": "java_implementation_namespace",
     "description": "Move FileListResponse, OpenAIPageableListOf, and FunctionCallPreset to implementation namespace for Java",
     "feedback": "For Java, the namespace for FileListResponse, OpenAIPageableListOf, and FunctionCallPreset should all be 'com.azure.ai.openai.implementation'.",
+    "language": "java",
+    "tags": ["client_namespace", "java", "openai"]
+  },
+  {
+    "testcase": "java_openai_namespace",
+    "description": "Set Azure.OpenAI to com.azure.ai.openai for Java",
+    "feedback": "For Java, the Azure.OpenAI namespace should be moved to the 'com.azure.ai.openai' namespace.",
     "language": "java",
     "tags": ["client_namespace", "java", "openai"]
   }

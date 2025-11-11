@@ -3,6 +3,7 @@ jsonlines>=4.0.0
 python-dotenv>=1.0.0
 azure-identity>=1.15.0
 openai>=1.0.0
+anthropic>=0.21.0  # For Claude support
 
 # Testing and comparison tools
 deepdiff>=8.6.0  # For semantic file comparison
