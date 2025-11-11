@@ -595,6 +595,9 @@ class NewChatmodeEvalRunner:
             extracted_client_file = extracted_dir / "client.tsp"
             extracted_client_file.write_text(client_tsp_content)
 
+            # Print paths for extracted file
+            print(f"    📄 Extracted client.tsp: {extracted_client_file.absolute()}")
+
             # Compile the extracted client.tsp in the context of the specification directory
             # This creates a temp copy under build/ with the client.tsp injected to resolve all imports
             compilation_success, compilation_output = TypeSpecCompiler.compile_client_tsp_in_context(
@@ -608,6 +611,10 @@ class NewChatmodeEvalRunner:
             # Semantic validation for aggregated mode:
             # Merge validation requirements from ALL test cases
             expected_file = scenario_path / "expected" / "client.tsp"
+
+            # Print path for expected file (always, as per README rules)
+            print(f"    📋 Expected client.tsp: {expected_file.absolute()}")
+
             merged_validation = {
                 "expected_renames": {},
                 "required_decorators": [],
@@ -664,8 +671,8 @@ class NewChatmodeEvalRunner:
                 scenario_path.name,
                 success,
                 "; ".join(messages),
-                str(extracted_client_file),
-                None,
+                str(extracted_client_file.absolute()),
+                str(expected_file.absolute()),
                 diff=None,
                 compilation_result=compilation_output
             )
@@ -857,6 +864,12 @@ class NewChatmodeEvalRunner:
             status = "✅ PASSED" if result.success else "❌ FAILED"
             report += f"\n### {result.testcase} - {status}\n"
             report += f"**Message**: {result.message}\n"
+
+            # Add file paths (always include both as per README rules)
+            if result.generated_file:
+                report += f"\n**Extracted client.tsp**: `{result.generated_file}`\n"
+            if result.expected_file:
+                report += f"**Expected client.tsp**: `{result.expected_file}`\n"
 
             if result.diff:
                 report += f"\n**Diff**:\n```diff\n{result.diff}\n```\n"

@@ -117,184 +117,66 @@ Target names MUST use TypeSpec conventions, NOT target language conventions:
 
 ### Step 4: Select Appropriate Decorators
 
-**CRITICAL: @client vs @@clientName Decorator Usage**
+**Reference Documentation**: For complete decorator syntax, examples, and best practices, see:
+https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
 
-**Use `@client` decorator:**
-- Applied to **interfaces or namespaces** to specify client class generation
-- Controls overall client structure and naming
-- Example: `@client({name: "TodoClient", service: TodoService})`
-
-**Use `@@clientName` decorator:**
-- Applied to **specific operations, models, parameters, or properties** for renaming in generated SDKs
-- Controls individual element names within the client
-- Example: `@@clientName(TodoService.listTodos, "getTodos", "python")`
-
-**Key Difference:**
-- `@client` = Controls client class generation (interface-level)
-- `@@clientName` = Controls individual element naming (operation/model/parameter/property-level)
-
-**Decorator Selection Matrix (Based on Real Usage Analysis):**
-
-**Primary Decorators (Used by 50+ services):**
-- **Method/Operation renaming**: `@@clientName(operation, "newName", "language")`
-- **Client/Interface renaming**: `@@clientName(namespace, "NewClientName", "language")`
-- **Model/Property renaming**: `@@clientName(model.property, "newName", "language")`
-- **Visibility control**: `@@access(element, Access.internal, "language")` or `@@access(element, Access.internal)`
-- **Input/Output specification**: `@@usage(element, Usage.input|Usage.output, "language")`
-
-**Secondary Decorators (Used by 20+ services):**
-- **Type mapping**: `@@alternateType(property, NewType, "language")`
-- **ARM Resource IDs**: `@@alternateType(property, armResourceIdentifier, "csharp")`
-- **System converters**: `@@useSystemTextJsonConverter(ModelName, "csharp")`
-
-**Specialized Decorators (Used by 10+ services):**
-- **Package naming**: `@@clientNamespace(namespace, "custom.package.name", "language")`
-
-**Advanced Decorators (Used by <10 services):**
-- **Language scoping**: `@@scope(operation, "!java, !csharp")`
-- **Method overrides**: `@@override(operation, "language")`
-- **Convenience APIs**: `@@convenientAPI(operation, true|false, "language")`
+**CRITICAL Rules:**
+1. **Naming conventions**: Always use TypeSpec naming conventions in `@@clientName`, NOT target language conventions:
+   - ✅ `@@clientName(op, "getItems", "python")` (camelCase)
+   - ❌ `@@clientName(op, "get_items", "python")` (snake_case)
+   
+2. **Decorator selection**: 
+   - `@client` = client class generation (interface-level)
+   - `@@clientName` = element renaming (operation/model/parameter/property-level)
 
 ### Step 5: Generate and Apply Changes
 
-**Code Generation Patterns (Based on Real Usage):**
+**Reference Documentation**: For complete code generation patterns and examples, see:
+https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
+
+**Common Patterns:**
 
 ```typescript
-// Most Common: clientName for operations (111 services use this)
-@@clientName(ServiceNamespace.Interface.operationName, 
-  "TargetOperationName", 
-  "python"
-);
+// Operation renaming
+@@clientName(ServiceNamespace.Interface.operationName, "targetOperationName", "python");
 
-// Multi-line format for complex cases
-@@clientName(Azure.ResourceManager.CommonTypes.CheckNameAvailabilityRequest,
-  "CustomNameAvailabilityContent",
-  "csharp"
-);
+// Property renaming
+@@clientName(Model.propertyName, "targetPropertyName", "csharp");
 
-// Visibility control with language specification (48 services)
+// Visibility control
 @@access(Operations.list, Access.internal, "csharp");
 
-// Usage specification for input/output (37 services)  
-@@usage(ModelName, Usage.input, "csharp");
-@@usage(ResponseModel, Usage.output);
-
-// Type mapping with ARM resources (24 services)
+// Type mapping
 @@alternateType(Connection.etag, eTag, "csharp");
-@@alternateType(Resource.resourceId, armResourceIdentifier, "csharp");
-
-// System JSON converters (24 services)
-@@useSystemTextJsonConverter(EventDataModel, "csharp");
-
-// Package/namespace customization (12 services)
-@@clientNamespace(Microsoft.ServiceName,
-  "com.azure.resourcemanager.servicename",
-  "java"
-);
-
-// Language exclusion scoping (6 services)
-@@scope(OperationResults.get, "!java, !csharp");
 ```
 
 ## Implementation Steps
 
+**Reference Documentation**: For complete client.tsp structure and examples, see:
+https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
+
+**Quick Implementation Guide:**
+
 1. **Locate TypeSpec Files**: Find `main.tsp`, `client.tsp`, or relevant TypeSpec files
 2. **Identify Target Elements**: Map SDK feedback to TypeSpec paths
-3. **Apply Decorators**: Add appropriate `@@clientName`, `@@access`, or `@@alternateType` decorators
+3. **Apply Decorators in client.tsp**: Add appropriate decorators with proper imports and namespace
 4. **Validate Syntax**: Ensure decorators follow TypeSpec syntax
 5. **Compile Check**: Run `tsp compile` to verify changes
 
-## Complete client.tsp File Example
-
-**CRITICAL: All client customizations MUST be placed in `client.tsp` with the following imports and namespace definition:**
-
+**Required client.tsp Structure:**
 ```tsp
 import "@azure-tools/typespec-client-generator-core";
 import "@typespec/versioning";
-// Import service files ONLY as needed to reference types/operations:
-// import "./main.tsp";     // Example import: referencing service definitions
-// import "./models.tsp";   // Example import: referencing models from separate file
-// import "./routes.tsp";   // Example import: referencing operations from separate file
+// Import service files ONLY as needed:
+// import "./main.tsp";
 
 using Azure.ClientGenerator.Core;
 using TypeSpec.Versioning;
-// Add using statement for service namespace if needed for shorter paths:
-// using TodoService;
 
-@useDependency(TodoService.Versions.v2025_01_01);
-namespace ClientCustomizations; // REQUIRED
+namespace ClientCustomizations; // REQUIRED if defining types
 
-// Client interface customization
-@client({
-  name: "TodoClient", // Rename client from TodoServiceClient to TodoClient
-  service: TodoService,
-})
-interface TodoClient {
-  getAllTodos is TodoService.Operations.listTodos;
-}
-
-// Operation renaming examples (using namespace shortens paths)
-@@clientName(Operations.listTodos, "getTodos", "python");
-@@clientName(Operations.createTodo, "addTodo", "java");
-@@clientName(Operations.deleteTodo, "removeTodo", "csharp");
-
-// Client class renaming
-@@clientName(TodoService, "TaskManager", "java");
-@@clientName(TodoService, "TodoClient", "python");
-
-// Property renaming (using namespace shortens model paths)
-@@clientName(Todo.displayName, "title", "python");
-@@clientName(Todo.isCompleted, "isDone", "csharp");
-@@clientName(User.emailAddress, "email", "java");
-
-// Parameter renaming
-@@clientName(Operations.createTodo::parameters.request, "todoRequest", "python");
-@@clientName(Operations.searchTodos::parameters.query, "searchQuery", "java");
-
-// Model renaming
-@@clientName(TodoItem, "Task", "csharp");
-@@clientName(UserProfile, "User", "java");
-
-// Visibility control
-@@access(TodoService.Operations.debugInfo, Access.internal);
-@@access(TodoService.Operations.adminOperation, Access.internal, "csharp");
-
-// Usage specification
-@@usage(CreateTodoRequest, Usage.input, "csharp");
-@@usage(TodoResponse, Usage.output);
-
-// Type mapping
-@@alternateType(Todo.status, TodoStatus, "csharp");
-@@alternateType(Todo.priority, PriorityLevel, "java");
-
-// ARM Resource ID mapping
-@@alternateType(Resource.resourceId, armResourceIdentifier, "csharp");
-@@alternateType(Connection.subscriptionId, armResourceIdentifier, "csharp");
-
-// System JSON converters
-@@useSystemTextJsonConverter(EventData, "csharp");
-@@useSystemTextJsonConverter(MetricsData, "csharp");
-
-// Package/namespace customization
-@@clientNamespace(TodoService, "com.azure.todo", "java");
-@@clientNamespace(TodoService, "Azure.Todo", "csharp");
-
-// Language scoping
-@@scope(TodoService.Operations.experimentalFeature, "!java, !csharp");
-@@scope(DebugOperations.getInternalState, "python");
-
-// Method overrides and convenience APIs
-@@override(TodoService.Operations.list, "python");
-@@convenientAPI(TodoService.Operations.bulkCreate, true, "csharp");
-@@convenientAPI(TodoService.Operations.advancedQuery, false, "java");
+// Your customizations here
 ```
-
-**Required Structure Elements:**
-1. **Imports**: Must include `@azure-tools/typespec-client-generator-core` and `@typespec/versioning`. Import service files (`./main.tsp`, `./models.tsp`, `./routes.tsp`) ONLY if needed to reference specific types or operations.
-2. **Using statements**: Must include `Azure.ClientGenerator.Core` and `TypeSpec.Versioning`. Add service namespace (e.g., `using ServiceNamespace;`) only if using shortened decorator paths.
-3. **Namespace**: MUST declare `namespace ClientCustomizations;`
-4. **Client decorator**: Use `@client` for interface-level customizations
-5. **Augment decorators**: Use `@@clientName`, `@@access`, etc. for element-level customizations (simplified paths when using service namespace)
 
 **CRITICAL RULES:**
 - ✅ **ALWAYS** add client customizations to `client.tsp` file
@@ -305,6 +187,11 @@ interface TodoClient {
 
 ## Example Transformations
 
+**Reference Documentation**: For comprehensive examples and common scenarios, see:
+https://raw.githubusercontent.com/Azure/azure-sdk-tools/refs/heads/main/eng/common/knowledge/customizing-client-tsp.md
+
+**Quick Examples:**
+
 ### Method Renaming
 **Feedback**: "In Python SDK, rename `list_todos` to `getTodos`"
 **Implementation**: `@@clientName(TodoService.listTodos, "getTodos", "python");`
@@ -314,32 +201,12 @@ interface TodoClient {
 **Implementation**: `@@clientName(TodoService, "TaskManager", "java");`
 
 ### Property Renaming
-**Feedback**: "C# property `display_name` should be `FullName`"  
+**Feedback**: "C# property `display_name` should be `fullName`"  
 **Implementation**: `@@clientName(User.displayName, "fullName", "csharp");`
 
 ### Visibility Control
 **Feedback**: "Make the debug method internal"
 **Implementation**: `@@access(ServiceNamespace.debugMethod, Access.internal);`
-
-### Type Mapping
-**Feedback**: "Use strongly-typed enum instead of string for status"
-**Implementation**: `@@alternateType(Response.status, ResponseStatus, "csharp");`
-
-### ARM Resource ID Mapping  
-**Feedback**: "Use ARM resource identifier for resourceId property in C#"
-**Implementation**: `@@alternateType(Connection.resourceId, armResourceIdentifier, "csharp");`
-
-### Usage Specification
-**Feedback**: "Make this model input-only for C# SDK"
-**Implementation**: `@@usage(RequestModel, Usage.input, "csharp");`
-
-### System JSON Converter
-**Feedback**: "Use system text JSON converter for event data in C#"
-**Implementation**: `@@useSystemTextJsonConverter(EventDataModel, "csharp");`
-
-### Language Scoping
-**Feedback**: "Exclude this operation from Java and C# SDKs"  
-**Implementation**: `@@scope(DiagnosticOperation.get, "!java, !csharp");`
 
 ## Error Handling
 
