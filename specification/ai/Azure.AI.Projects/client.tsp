@@ -193,3 +193,25 @@ using Azure.AI.OpenAI.Assistants;
 @@clientName(Azure.AI.Agents.ComputerUseToolDefinition.type, "type_", "python");
 @@clientName(Azure.AI.Agents.AzureFunctionToolDefinition.type, "type_", "python");
 @@clientName(Azure.AI.Agents.BrowserAutomationToolDefinition.type, "type_", "python");
+
+// ========================================================================
+// APIView Feedback Summary
+// ========================================================================
+// This file addresses APIView feedback for azure-ai-projects (Python) package
+// APIView URL: https://spa.apiview.dev/review/a8bd55fd470240e29e7648d13a7882eb
+//
+// ADDRESSED via TypeSpec customizations (renamed 'type' to 'type_', 'object' to 'deleted'):
+// - All discriminator properties named 'type' in Azure.AI.Projects models (14 models)
+// - All discriminator properties named 'type' in Azure.AI.Agents ToolDefinition models (18 models)
+// - AgentDeletionStatus.object property renamed to 'deleted'
+//
+// CANNOT BE ADDRESSED from TypeSpec (Python SDK generation or hand-written code):
+// - Duplicate mapping overloads (LineNo 1960, 2316, 8186)
+// - Optional type annotations (LineNo 3939, 4052, 4054, 4058) 
+// - Operations that don't exist in TypeSpec (EvaluatorsOperations, InsightsOperations, SchedulesOperations)
+// - Python telemetry/instrumentation code (LineNo 10120, 10125)
+// - LRO metadata properties (LineNo 1840, 1841, 1852, 8591)
+// - Many parameter type changes to Literal types (require model definition changes)
+// - Some model naming issues for generated types (GrammarSyntax1, etc.)
+// - Most feedback items are about Python SDK code generation patterns that are not controlled
+//   by TypeSpec but by the Python emitter or hand-written SDK code
