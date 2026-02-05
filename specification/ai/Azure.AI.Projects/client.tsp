@@ -152,6 +152,46 @@ using Azure.AI.OpenAI.Assistants;
 // Line 4434: Rename FunctionToolDefinition.type field to avoid shadowing built-in
 @@clientName(Azure.AI.Agents.FunctionToolDefinition.type, "type_", "python");
 
+// Additional Tool definitions with 'type' discriminators that shadow Python built-ins
+@@clientName(Azure.AI.Agents.CodeInterpreterToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.FileSearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.BingGroundingToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MicrosoftFabricToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.SharepointToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.AzureAISearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.OpenApiToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.BingCustomSearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.ConnectedAgentToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.DeepResearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MCPToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.ComputerUseToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.AzureFunctionToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.BrowserAutomationToolDefinition.type, "type_", "python");
+
+// Connection credential models with 'type' discriminators
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.EntraIDCredentials.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.CustomCredential.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.SASCredentials.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.NoAuthenticationCredentials.type, "credential_type", "python");
+
+// Connection model has 'type' field for ConnectionType
+@@clientName(Azure.AI.Projects.Connection.type, "connection_type", "python");
+
+// Message models with 'type' discriminators
+@@clientName(Azure.AI.Agents.MessageInputTextBlock.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MessageInputImageFileBlock.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MessageInputImageUrlBlock.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MessageTextContent.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MessageImageFileContent.type, "type_", "python");
+
+// Run step models with 'type' discriminators
+@@clientName(Azure.AI.Agents.RunStepDeltaMessageCreation.type, "type_", "python");
+@@clientName(Azure.AI.Agents.RunStepDeltaToolCallObject.type, "type_", "python");
+@@clientName(Azure.AI.Agents.RunStepDeltaMCPObject.type, "type_", "python");
+@@clientName(Azure.AI.Agents.RunStepDeltaOpenAPIObject.type, "type_", "python");
+
 // ---------------------------------------------------------------------------------
 // Make Internal Classes (Lines 1852, 8591, 10120)
 // ---------------------------------------------------------------------------------
