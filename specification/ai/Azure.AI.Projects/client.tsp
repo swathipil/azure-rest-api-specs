@@ -1,7 +1,11 @@
 import "@azure-tools/typespec-client-generator-core";
 import "./main.tsp";
+import "../Azure.AI.Agents/main.tsp";
+import "../OpenAI.Assistants/main.tsp";
 
 using Azure.ClientGenerator.Core;
+using Azure.AI.Agents;
+using Azure.AI.OpenAI.Assistants;
 
 @@clientName(Azure.AI.Projects, "AIProjectClient");
 
@@ -124,3 +128,50 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// ========================================================================
+// Python-specific customizations to address APIView feedback
+// ========================================================================
+
+// Rename 'object' property in AgentDeletionStatus to avoid built-in conflict (LineNo 3160)
+@@clientName(Azure.AI.Agents.AgentDeletionStatus.object, "deleted", "python");
+
+// Rename 'type' properties in models to 'type_' to avoid shadowing built-in (Python convention)
+// SasCredential model (LineNo 2287 - BlobReferenceSasCredential)
+@@clientName(Azure.AI.Projects.SasCredential.type, "type_", "python");
+
+// FileDatasetVersion (LineNo 3964)
+@@clientName(Azure.AI.Projects.FileDatasetVersion.type, "type_", "python");
+
+// FolderDatasetVersion
+@@clientName(Azure.AI.Projects.FolderDatasetVersion.type, "type_", "python");
+
+// DatasetVersion (base model)
+@@clientName(Azure.AI.Projects.DatasetVersion.type, "type_", "python");
+
+// Index models (LineNo 1956 - AzureAISearchIndex)
+@@clientName(Azure.AI.Projects.Index.type, "type_", "python");
+@@clientName(Azure.AI.Projects.AzureAISearchIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ManagedAzureAISearchIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.CosmosDBIndex.type, "type_", "python");
+
+// Connection models (LineNo 2737)
+@@clientName(Azure.AI.Projects.Connection.type, "type_", "python");
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.EntraIDCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.CustomCredential.type, "type_", "python");
+@@clientName(Azure.AI.Projects.SASCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.NoAuthenticationCredentials.type, "type_", "python");
+
+// Deployment models (LineNo 7184 - ModelDeployment)
+@@clientName(Azure.AI.Projects.Deployment.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ModelDeployment.type, "type_", "python");
+
+// Evaluation models
+@@clientName(Azure.AI.Projects.InputData.type, "type_", "python");
+@@clientName(Azure.AI.Projects.InputDataset.type, "type_", "python");
+@@clientName(Azure.AI.Projects.EvaluationTarget.type, "type_", "python");
+
+// Red-team models
+@@clientName(Azure.AI.Projects.TargetConfig.type, "type_", "python");
