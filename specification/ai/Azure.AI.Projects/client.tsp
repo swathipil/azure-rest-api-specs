@@ -155,6 +155,9 @@ using Azure.ClientGenerator.Core;
 @@clientName(Azure.AI.Projects.EvaluationTarget.type, "targetType", "python");
 @@clientName(Azure.AI.Projects.InputData.type, "dataType", "python");
 
+// Red Teams - rename 'type' discriminator
+@@clientName(Azure.AI.Projects.TargetConfig.type, "configType", "python");
+
 // Line 2737: Connection.credentials should be Optional (mark as optional in Python)
 // Note: This is handled by the TypeSpec definition already having credentials as required
 // If this needs adjustment, it should be done in the model definition itself
