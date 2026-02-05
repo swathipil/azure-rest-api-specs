@@ -138,6 +138,23 @@ using Azure.ClientGenerator.Core;
 // Line 1956: AzureAISearchIndex - rename 'type' parameter
 @@clientName(Azure.AI.Projects.Index.type, "indexType", "python");
 
+// Line 7184: ModelDeployment - rename 'type' parameter
+@@clientName(Azure.AI.Projects.Deployment.type, "deploymentType", "python");
+
+// Line 7278: NoAuthenticationCredentials - rename 'type' parameter  
+@@clientName(Azure.AI.Projects.NoAuthenticationCredentials.type, "credentialType", "python");
+
+// Rename 'type' in other credential models for consistency
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.EntraIDCredentials.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.CustomCredential.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.SASCredentials.type, "credentialType", "python");
+
+// Evaluations - rename 'type' discriminators
+@@clientName(Azure.AI.Projects.EvaluationTarget.type, "targetType", "python");
+@@clientName(Azure.AI.Projects.InputData.type, "dataType", "python");
+
 // Line 2737: Connection.credentials should be Optional (mark as optional in Python)
 // Note: This is handled by the TypeSpec definition already having credentials as required
 // If this needs adjustment, it should be done in the model definition itself
