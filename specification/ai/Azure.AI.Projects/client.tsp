@@ -1,7 +1,11 @@
 import "@azure-tools/typespec-client-generator-core";
 import "./main.tsp";
+import "../Azure.AI.Agents/main.tsp";
+import "../OpenAI.Assistants/main.tsp";
 
 using Azure.ClientGenerator.Core;
+using Azure.AI.Agents;
+using Azure.AI.OpenAI.Assistants;
 
 @@clientName(Azure.AI.Projects, "AIProjectClient");
 
@@ -124,3 +128,71 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// ================================================================================
+// Python-specific customizations to address APIView feedback for azure-ai-projects
+// APIView URL: https://spa.apiview.dev/review/a8bd55fd470240e29e7648d13a7882eb
+// ================================================================================
+
+// ---------------------------------------------------------------------------------
+// Python Built-in Shadowing - Rename 'type' discriminators (Lines 760, 1470, 1956, etc.)
+// ---------------------------------------------------------------------------------
+
+// Azure.AI.Projects namespace models
+@@clientName(Azure.AI.Projects.SasCredential.type, "type_", "python");
+@@clientName(Azure.AI.Projects.AzureAISearchIndex.type, "index_type", "python");
+@@clientName(Azure.AI.Projects.CosmosDBIndex.type, "index_type", "python");
+@@clientName(Azure.AI.Projects.ManagedAzureAISearchIndex.type, "index_type", "python");
+@@clientName(Azure.AI.Projects.FileDatasetVersion.type, "data_type", "python");
+@@clientName(Azure.AI.Projects.FolderDatasetVersion.type, "data_type", "python");
+
+// Azure.AI.Agents namespace models - Line 3160: Rename 'object' to 'status'
+@@clientName(Azure.AI.Agents.AgentDeletionStatus.object, "status", "python");
+
+// Line 4434: Rename FunctionToolDefinition.type field to avoid shadowing built-in
+@@clientName(Azure.AI.Agents.FunctionToolDefinition.type, "type_", "python");
+
+// ---------------------------------------------------------------------------------
+// Make Internal Classes (Lines 1852, 8591, 10120)
+// ---------------------------------------------------------------------------------
+
+// Note: LRO polling method classes are typically auto-generated
+// Line 1852, 8591: AsyncUpdateMemoriesLROPollingMethod and UpdateMemoriesLROPollingMethod
+// should be internal - these may need to be addressed at SDK generation level
+
+// Line 10120: trace_function - mark as internal if it exists
+// This may need to be addressed at the SDK generation level
+
+// ---------------------------------------------------------------------------------
+// Optional Fields (Lines 3939, 4052, 4054, 4058)
+// ---------------------------------------------------------------------------------
+
+// The TypeSpec definitions already use optional (?:) syntax for these fields
+// via the AssetBase alias, so they should already be optional in the generated SDK
+
+// ---------------------------------------------------------------------------------
+// Parameter Renames for Operations (Lines 9784, 10087)
+// ---------------------------------------------------------------------------------
+
+// Note: Operation parameter renames may need to be done through operation-level decorators
+// if such operations exist in the TypeSpec
+
+// ---------------------------------------------------------------------------------
+// Model Naming Improvements (Lines 8360, 8380, 8406)
+// ---------------------------------------------------------------------------------
+
+// These would require model-level renames which may have broader impact
+// Deferring to spec owners for approval
+
+// ---------------------------------------------------------------------------------
+// Additional Comments from Feedback
+// ---------------------------------------------------------------------------------
+
+// Line 2316: Duplicate mapping overload - needs investigation in generated code
+// Line 756: list_latest_versions should perhaps be named just "list"
+// Line 4460: GrammarSyntax1 suffix - needs investigation
+// Line 8259: Summary.type discriminator - needs investigation
+// Line 7799: RankerVersionType.DEFAULT2024_11_15 capitalization
+// Line 2737: Connection.credentials Optional based on include_credentials
+// Line 6369: ItemResourceMcpApprovalResponseResource - long name
+// Line 6572: keys_property conflict - needs property rename
