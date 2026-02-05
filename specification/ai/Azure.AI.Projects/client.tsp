@@ -124,3 +124,90 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// ============================================================================
+// Python-specific APIView Feedback Customizations
+// ============================================================================
+
+// NOTE: Many APIView feedback items for azure-ai-projects Python SDK reference
+// models/operations from Azure.AI.Agents namespace which is merged into the
+// azure-ai-projects package. Those should be addressed in Azure.AI.Agents/client.tsp.
+// This file addresses items specific to Azure.AI.Projects namespace.
+
+// For delete operations, Python should return None rather than a response object.
+// This is handled via code customization (_patch.py) as TypeSpec doesn't directly
+// support overriding operation return types for specific languages.
+// Affected operations: Evaluations.delete, Datasets.deleteVersion, Indexes.deleteVersion
+
+// Rename 'type' parameters to avoid shadowing Python built-in
+
+// Base discriminator models - renaming at the base level should propagate to all subclasses
+@@clientName(Azure.AI.Projects.Index.type, "indexType", "python");
+@@clientName(Azure.AI.Projects.DatasetVersion.type, "dataType", "python");
+@@clientName(Azure.AI.Projects.Deployment.type, "deploymentType", "python");
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.InputData.type, "dataType", "python");
+@@clientName(Azure.AI.Projects.EvaluationTarget.type, "targetType", "python");
+@@clientName(Azure.AI.Projects.TargetConfig.type, "configType", "python");
+
+// Specific implementations (should inherit the renaming from base, but being explicit for clarity)
+// APIView Line 1956: AzureAISearchIndex.__init___3.param(type)
+@@clientName(Azure.AI.Projects.AzureAISearchIndex.type, "indexType", "python");
+
+// ManagedAzureAISearchIndex also has type parameter
+@@clientName(Azure.AI.Projects.ManagedAzureAISearchIndex.type, "indexType", "python");
+
+// CosmosDBIndex also has type parameter  
+@@clientName(Azure.AI.Projects.CosmosDBIndex.type, "indexType", "python");
+
+// APIView Line 3964: FileDatasetVersion.__init___3.param(type)
+@@clientName(Azure.AI.Projects.FileDatasetVersion.type, "dataType", "python");
+
+// FolderDatasetVersion also has type parameter
+@@clientName(Azure.AI.Projects.FolderDatasetVersion.type, "dataType", "python");
+
+// ModelDeployment has type parameter (APIView Line 7184)
+@@clientName(Azure.AI.Projects.ModelDeployment.type, "deploymentType", "python");
+
+// Credential models - type parameters
+// APIView Line 7278: NoAuthenticationCredentials.__init___3.param(type)
+@@clientName(Azure.AI.Projects.NoAuthenticationCredentials.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.EntraIDCredentials.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.CustomCredential.type, "credentialType", "python");
+@@clientName(Azure.AI.Projects.SASCredentials.type, "credentialType", "python");
+
+// Rename 'id' parameters to avoid shadowing Python built-in
+// InputDataset has an 'id' property
+@@clientName(Azure.AI.Projects.InputDataset.id, "datasetId", "python");
+
+// APIView Line 2287: BlobReferenceSasCredential.__init__ - type parameter
+@@clientName(Azure.AI.Projects.SasCredential.type, "credentialType", "python");
+
+// Evaluation models - type parameters
+@@clientName(Azure.AI.Projects.modelResponseGenerationTarget.type, "targetType", "python");
+
+// Red team models - type parameters
+@@clientName(Azure.AI.Projects.AzureOpenAIModelConfiguration.type, "modelType", "python");
+// addressed in Azure.AI.Agents/client.tsp. If it's a future addition to Azure.AI.Projects,
+// the pattern would be: @@clientName(Azure.AI.Projects.FunctionTool.type, "toolType", "python");
+
+// Items that cannot be addressed via TypeSpec client.tsp and require code customization:
+// - Optional field mismatches (tags, description, connectionName fields)
+// - Duplicate mapping overloads in generated __init__ methods
+// - LRO poller metadata properties consolidation
+// - Type literal improvements for discriminator values
+// - AsyncUpdateMemoriesLROPoller, UpdateMemoriesLROPollingMethod visibility (if needed)
+
+// Items from Azure.AI.Agents namespace that appear in azure-ai-projects package:
+// These should be addressed in Azure.AI.Agents/client.tsp:
+// - AgentsOperations.delete return type (Line 227)
+// - telemetry.trace_function visibility (Line 10120)
+// - EvaluatorsOperations.list_latest_versions.param(type) (Lines 760, 9630)
+// - Various agent model parameters named 'type' or 'id'
+// - Model naming improvements (GrammarSyntax1, Type, TextResponseFormat models)
+// - RankerVersionType enum value capitalization
+
+// Note: Some feedback items may require Python-specific code customization
+// via _patch.py files as they involve generated code structure that TypeSpec
+// decorators cannot directly control.
