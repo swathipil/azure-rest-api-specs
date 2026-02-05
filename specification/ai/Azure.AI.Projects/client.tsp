@@ -124,3 +124,36 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// Python-specific customizations to address APIView feedback
+// Rename parameters that shadow Python built-ins
+
+// Line 1956: AzureAISearchIndex - rename 'type' parameter to avoid shadowing built-in
+// Note: This applies to the model's discriminator property which becomes a parameter in __init__
+// The 'type' property in Index models should be renamed to 'index_type' for Python
+@@clientName(Azure.AI.Projects.Index.type, "index_type", "python");
+@@clientName(Azure.AI.Projects.AzureAISearchIndex.type, "index_type", "python");
+@@clientName(Azure.AI.Projects.CosmosDBIndex.type, "index_type", "python");
+@@clientName(Azure.AI.Projects.ManagedAzureAISearchIndex.type, "index_type", "python");
+
+// Line 3964: FileDatasetVersion - rename 'type' parameter to 'data_type'
+@@clientName(Azure.AI.Projects.DatasetVersion.type, "data_type", "python");
+@@clientName(Azure.AI.Projects.FileDatasetVersion.type, "data_type", "python");
+@@clientName(Azure.AI.Projects.FolderDatasetVersion.type, "data_type", "python");
+
+// Line 7184: ModelDeployment - rename 'type' parameter
+@@clientName(Azure.AI.Projects.ModelDeployment.type, "deployment_type", "python");
+
+// Line 2737: Connection.credentials - The 'type' discriminator in credentials
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.EntraIDCredentials.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.CustomCredential.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.SASCredentials.type, "credential_type", "python");
+@@clientName(Azure.AI.Projects.NoAuthenticationCredentials.type, "credential_type", "python");
+
+// Rename 'type' discriminator in other models
+@@clientName(Azure.AI.Projects.InputData.type, "data_type", "python");
+@@clientName(Azure.AI.Projects.InputDataset.type, "data_type", "python");
+@@clientName(Azure.AI.Projects.EvaluationTarget.type, "target_type", "python");
+@@clientName(Azure.AI.Projects.modelResponseGenerationTarget.type, "target_type", "python");
