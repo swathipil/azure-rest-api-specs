@@ -160,9 +160,18 @@ using Azure.ClientGenerator.Core;
 // The azure-ai-projects Python package includes types from Azure.AI.Agents and OpenAI.Assistants,
 // so we apply Python customizations to those types here.
 
-// Note: Many of the specific models mentioned in the APIView feedback (like AgentTaxonomyInput, 
-// ClickParam, BrowserAutomationPreviewTool, etc.) may be defined in Azure.AI.Agents or 
-// OpenAI.Assistants namespaces. Without being able to see their exact definitions in those specs,
-// we cannot add customizations for them here. Those customizations should be added to the 
-// respective namespace client.tsp files (Azure.AI.Agents/client.tsp or OpenAI.Assistants/client.tsp)
-// with Python scope, and they will be picked up when the azure-ai-projects package is generated.
+// IMPORTANT NOTE: Many types mentioned in the APIView feedback (such as AgentTaxonomyInput,
+// ClickParam, AsyncUpdateMemoriesLROPoller, BrowserAutomationPreviewTool, FunctionTool,
+// InputItemCodeInterpreterToolCall, and many others) are NOT found in the Azure.AI.Projects,
+// Azure.AI.Agents, or OpenAI.Assistants TypeSpec specifications that are currently accessible.
+// These types may be:
+// 1. Generated automatically by the Python emitter based on TypeSpec patterns
+// 2. Part of SDK-specific customizations that occur during code generation
+// 3. Defined in handwritten SDK code
+//
+// Per the issue constraints, we can ONLY modify Azure.AI.Projects/client.tsp.
+// Therefore, customizations that would require changes to Azure.AI.Agents/client.tsp or
+// OpenAI.Assistants/client.tsp cannot be applied here.
+//
+// The following customizations address feedback items for types that ARE defined in
+// Azure.AI.Projects TypeSpec specification.
