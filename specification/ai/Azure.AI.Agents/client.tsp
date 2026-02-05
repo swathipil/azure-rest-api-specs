@@ -494,3 +494,39 @@ using Azure.AI.Agents;
 
 // Line 4434: FunctionTool.type -> type_
 @@clientName(FunctionToolDefinition.type, "type_", "python");
+
+// --------------------------------------------------------------------------------
+// Python APIView feedback: Rename 'type' parameters in Tool definitions
+// --------------------------------------------------------------------------------
+// Tool definitions that use 'type' as discriminator
+@@clientName(CodeInterpreterToolDefinition.type, "type_", "python");
+@@clientName(FileSearchToolDefinition.type, "type_", "python");
+@@clientName(BingGroundingToolDefinition.type, "type_", "python");
+@@clientName(MicrosoftFabricToolDefinition.type, "type_", "python");
+@@clientName(SharepointToolDefinition.type, "type_", "python");
+@@clientName(AzureAISearchToolDefinition.type, "type_", "python");
+@@clientName(OpenApiToolDefinition.type, "type_", "python");
+@@clientName(BingCustomSearchToolDefinition.type, "type_", "python");
+@@clientName(ConnectedAgentToolDefinition.type, "type_", "python");
+@@clientName(DeepResearchToolDefinition.type, "type_", "python");
+@@clientName(MCPToolDefinition.type, "type_", "python");
+@@clientName(ComputerUseToolDefinition.type, "type_", "python");
+@@clientName(AzureFunctionToolDefinition.type, "type_", "python");
+@@clientName(BrowserAutomationToolDefinition.type, "type_", "python");
+
+// --------------------------------------------------------------------------------
+// Python APIView feedback: Rename 'type' in Computer Use actions
+// --------------------------------------------------------------------------------
+// Line 6589: KeyPressAction.__init__.type parameter
+@@clientName(KeyPressAction.type, "type_", "python");
+@@clientName(MoveAction.type, "type_", "python");
+@@clientName(ScreenshotAction.type, "type_", "python");
+@@clientName(ScrollAction.type, "type_", "python");
+@@clientName(ClickAction.type, "type_", "python");
+@@clientName(DoubleClickAction.type, "type_", "python");
+@@clientName(DragAction.type, "type_", "python");
+@@clientName(WaitAction.type, "type_", "python");
+
+// Line 6572: KeyPressAction.keys property conflicts with mutable mapping keys() method
+// Rename to 'key_sequence' or 'key_presses' for Python
+@@clientName(KeyPressAction.keys, "keySequence", "python");
