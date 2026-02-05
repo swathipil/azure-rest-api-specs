@@ -83,8 +83,16 @@ using Azure.ClientGenerator.Core;
 
 ## Conclusion
 
-**Current Status**: The APIView feedback cannot be addressed through TypeSpec client customizations because the azure-cosmos Python SDK does not have a TypeSpec specification in this repository.
+**Current Status**: ⚠️ **Cannot Address via TypeSpec** - The APIView feedback cannot be addressed through TypeSpec client customizations because the azure-cosmos Python SDK does not have a TypeSpec specification in this repository.
 
-**Action Required**: This issue should be redirected to the `azure-sdk-for-python` repository where Python-specific code customizations can be applied to ensure the `headers` attribute uses native Python `dict` type.
+**Root Cause**: TypeSpec client customizations (using `@@alternateType`, `@@clientName`, and other decorators in a `client.tsp` file) only apply when:
+1. A TypeSpec specification exists (e.g., `main.tsp`, `models.tsp`, `tspconfig.yaml`)
+2. The SDK is generated from that TypeSpec specification
 
-**PR #43341 Reference**: Without access to this specific PR, it's unclear what changes were made. However, the pattern should be consistent with ensuring all error classes use native dict for headers across the SDK.
+The `azure-cosmos` package is not generated from TypeSpec in this repository.
+
+**Action Required**: This issue should be redirected to the `azure-sdk-for-python` repository where Python-specific code customizations can be applied. The fix should ensure the `headers` attribute of `CosmosAccessConditionFailedError` (and any similar exception classes) uses Python's native `dict` type for consistency.
+
+**Alternative Future Path**: If Azure Cosmos DB plans to adopt TypeSpec for the NoSQL API in the future, a TypeSpec specification could be created at `/specification/cosmos-db/data-plane/CosmosDB/`, at which point client customizations could be applied through a `client.tsp` file.
+
+**PR #43341 Reference**: Without access to this specific PR, it's unclear what changes were made. However, the pattern referenced suggests ensuring all error classes use native dict for headers across Azure SDKs for consistency.
