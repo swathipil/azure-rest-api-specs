@@ -1,0 +1,55 @@
+parameters:
+  "service-dir":
+    default: "sdk/cosmos"
+  "dependencies":
+    default: ""
+emit:
+  - "@azure-tools/typespec-autorest"
+options:
+  "@azure-tools/typespec-autorest":
+    azure-resource-provider-folder: "data-plane"
+    emit-lro-options: "none"
+    emitter-output-dir: "{project-root}/.."
+    omit-unreachable-types: true
+    output-file: "{azure-resource-provider-folder}/{service-name}/{version-status}/{version}/cosmos-nosql.json"
+  "@azure-tools/typespec-python":
+    emitter-output-dir: "{output-dir}/{service-dir}/azure-cosmos"
+    namespace: "azure.cosmos"
+    package-name: "azure-cosmos"
+    package-version: 4.8.0
+    package-mode: dataplane
+    flavor: azure
+    generate-test: true
+    generate-sample: true
+  "@azure-tools/typespec-csharp":
+    emitter-output-dir: "{output-dir}/{service-dir}/{namespace}"
+    namespace: "Azure.Cosmos"
+    clear-output-folder: true
+    model-namespace: false
+    flavor: azure
+  "@azure-typespec/http-client-csharp":
+    emitter-output-dir: "{output-dir}/{service-dir}/{namespace}"
+    namespace: Azure.Cosmos
+    model-namespace: false
+  "@azure-tools/typespec-ts":
+    emitter-output-dir: "{output-dir}/{service-dir}/cosmos-rest"
+    generate-metadata: true
+    is-modular-library: false
+    flavor: azure
+    package-details:
+      name: "@azure-rest/cosmos"
+      description: "Cosmos DB REST Client"
+  "@azure-tools/typespec-java":
+    emitter-output-dir: "{output-dir}/{service-dir}/azure-cosmos"
+    namespace: com.azure.cosmos
+    partial-update: true
+    use-eclipse-language-server: false
+    enable-subclient: false
+    generate-samples: false
+    generate-tests: false
+    flavor: azure
+linter:
+  extends:
+    - "@azure-tools/typespec-azure-rulesets/data-plane"
+  disable:
+    "@azure-tools/typespec-azure-core/operation-missing-api-version": "API version located in the host template"
