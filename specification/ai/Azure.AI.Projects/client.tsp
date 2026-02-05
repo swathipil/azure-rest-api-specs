@@ -135,6 +135,10 @@ using Azure.AI.Agents;
 // ---------------------------------------------------------------------------------
 // Python Built-in Shadowing - Rename 'type' discriminators (Lines 760, 1470, 1956, etc.)
 // ---------------------------------------------------------------------------------
+// Note: Using descriptive names (index_type, data_type, credential_type) instead of 
+// generic 'type_' to improve API usability, as suggested in APIView feedback.
+// The discriminator pattern is preserved at the wire level; these renames only affect
+// Python SDK property names.
 
 // Azure.AI.Projects namespace models
 @@clientName(Azure.AI.Projects.SasCredential.type, "type_", "python");
