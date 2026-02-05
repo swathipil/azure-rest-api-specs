@@ -124,3 +124,12 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// Evaluation customizations for Python SDK
+// Add documentation about evaluator ID scheme for built-in evaluators
+@@clientDoc(
+  Azure.AI.Projects.EvaluatorConfiguration.id,
+  "Identifier of the evaluator. For built-in evaluators, use the scheme: azureai://built-in/evaluators/<evaluator-name> (e.g., azureai://built-in/evaluators/groundedness, azureai://built-in/evaluators/relevance). Custom evaluators can use any string identifier.",
+  DocumentationMode.append,
+  "python"
+);
