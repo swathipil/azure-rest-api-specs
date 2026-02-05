@@ -485,3 +485,12 @@ using Azure.AI.Agents;
 @@clientName(ThreadRun.assistantId, "agentId", "python");
 @@clientName(CreateRunOptions.assistantId, "agentId", "python");
 @@clientName(CreateAndRunThreadOptions.assistantId, "agentId", "python");
+
+// --------------------------------------------------------------------------------
+// Python APIView feedback: Rename 'object' attribute to avoid shadowing built-in
+// --------------------------------------------------------------------------------
+// Line 3160: DeleteAgentResponse.object -> status
+@@clientName(AgentDeletionStatus.object, "status", "python");
+
+// Line 4434: FunctionTool.type -> type_
+@@clientName(FunctionToolDefinition.type, "type_", "python");

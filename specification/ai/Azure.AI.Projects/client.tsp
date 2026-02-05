@@ -124,3 +124,23 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// --------------------------------------------------------------------------------
+// Python-specific customizations for APIView feedback
+// --------------------------------------------------------------------------------
+
+// Line 2287: BlobReferenceSasCredential (SasCredential) - rename 'type' parameter
+@@clientName(Azure.AI.Projects.SasCredential.type, "credentialType", "python");
+
+// Line 1956, 3964: Rename 'type' parameters in Dataset models to avoid shadowing built-in
+@@clientName(Azure.AI.Projects.DatasetVersion.type, "dataType", "python");
+
+// Line 1956: AzureAISearchIndex - rename 'type' parameter
+@@clientName(Azure.AI.Projects.Index.type, "indexType", "python");
+
+// Line 2737: Connection.credentials should be Optional (mark as optional in Python)
+// Note: This is handled by the TypeSpec definition already having credentials as required
+// If this needs adjustment, it should be done in the model definition itself
+
+// Line 3939, 4058: FileDatasetVersion.tags and FolderDatasetVersion.tags should be Optional
+// Note: These inherit from AssetBase where tags is already optional
