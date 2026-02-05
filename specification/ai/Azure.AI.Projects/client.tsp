@@ -175,3 +175,21 @@ using Azure.AI.OpenAI.Assistants;
 
 // Red-team models
 @@clientName(Azure.AI.Projects.TargetConfig.type, "type_", "python");
+
+// Azure.AI.Agents Tool definitions - rename 'type' discriminator property
+@@clientName(Azure.AI.Agents.ToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.CodeInterpreterToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.FileSearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.FunctionToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.BingGroundingToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MicrosoftFabricToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.SharepointToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.AzureAISearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.OpenApiToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.BingCustomSearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.ConnectedAgentToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.DeepResearchToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.MCPToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.ComputerUseToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.AzureFunctionToolDefinition.type, "type_", "python");
+@@clientName(Azure.AI.Agents.BrowserAutomationToolDefinition.type, "type_", "python");
