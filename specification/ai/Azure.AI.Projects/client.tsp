@@ -124,3 +124,27 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// ===== APIView Feedback: Rename parameters/properties to avoid shadowing Python built-ins =====
+
+// Python-specific: Rename 'type' discriminator properties to 'type_' for models in Azure.AI.Projects
+@@clientName(Azure.AI.Projects.AzureAISearchIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ManagedAzureAISearchIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.CosmosDBIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.Index.type, "type_", "python");
+@@clientName(Azure.AI.Projects.FileDatasetVersion.type, "type_", "python");
+@@clientName(Azure.AI.Projects.FolderDatasetVersion.type, "type_", "python");
+@@clientName(Azure.AI.Projects.DatasetVersion.type, "type_", "python");
+@@clientName(Azure.AI.Projects.Connection.type, "type_", "python");
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.EntraIDCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.CustomCredential.type, "type_", "python");
+@@clientName(Azure.AI.Projects.SASCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.NoAuthenticationCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.Deployment.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ModelDeployment.type, "type_", "python");
+@@clientName(Azure.AI.Projects.SasCredential.type, "type_", "python");
+
+// Python-specific: Rename 'id' parameters to avoid shadowing built-in
+@@clientName(Azure.AI.Projects.Connection.id, "connectionId", "python");
