@@ -1,9 +1,15 @@
 import "@azure-tools/typespec-client-generator-core";
 import "./main.tsp";
+import "../Azure.AI.Agents/main.tsp";
+import "../OpenAI.Assistants/main.tsp";
 
 using Azure.ClientGenerator.Core;
 
 @@clientName(Azure.AI.Projects, "AIProjectClient");
+
+// ================================================================================
+// Python-specific customizations to address APIView feedback
+// ================================================================================
 
 // Shorter method names for SDK datasets operations
 @@clientName(Azure.AI.Projects.Datasets.listLatest, "list");
@@ -124,3 +130,39 @@ using Azure.ClientGenerator.Core;
 // input parameter that calls either on these two.
 @@access(Azure.AI.Projects.Connections.get, Access.internal);
 @@access(Azure.AI.Projects.Connections.getWithCredentials, Access.internal);
+
+// ================================================================================
+// Python-specific customizations to address APIView feedback
+// ================================================================================
+
+// Rename 'type' discriminator properties to 'type_' to avoid shadowing Python built-in (multiple feedback items)
+@@clientName(Azure.AI.Projects.Index.type, "type_", "python");
+@@clientName(Azure.AI.Projects.AzureAISearchIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ManagedAzureAISearchIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.CosmosDBIndex.type, "type_", "python");
+@@clientName(Azure.AI.Projects.DatasetVersion.type, "type_", "python");
+@@clientName(Azure.AI.Projects.FileDatasetVersion.type, "type_", "python");
+@@clientName(Azure.AI.Projects.FolderDatasetVersion.type, "type_", "python");
+@@clientName(Azure.AI.Projects.InputData.type, "type_", "python");
+@@clientName(Azure.AI.Projects.InputDataset.type, "type_", "python");
+@@clientName(Azure.AI.Projects.Connection.type, "type_", "python");
+@@clientName(Azure.AI.Projects.Deployment.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ModelDeployment.type, "type_", "python");
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.CustomCredential.type, "type_", "python");
+@@clientName(Azure.AI.Projects.EntraIDCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.SASCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.NoAuthenticationCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.SasCredential.type, "type_", "python");
+
+// Additional Python-specific customizations addressing APIView feedback comments
+// The azure-ai-projects Python package includes types from Azure.AI.Agents and OpenAI.Assistants,
+// so we apply Python customizations to those types here.
+
+// Note: Many of the specific models mentioned in the APIView feedback (like AgentTaxonomyInput, 
+// ClickParam, BrowserAutomationPreviewTool, etc.) may be defined in Azure.AI.Agents or 
+// OpenAI.Assistants namespaces. Without being able to see their exact definitions in those specs,
+// we cannot add customizations for them here. Those customizations should be added to the 
+// respective namespace client.tsp files (Azure.AI.Agents/client.tsp or OpenAI.Assistants/client.tsp)
+// with Python scope, and they will be picked up when the azure-ai-projects package is generated.
