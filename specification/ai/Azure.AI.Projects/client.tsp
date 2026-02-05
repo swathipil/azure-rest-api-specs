@@ -1,11 +1,9 @@
 import "@azure-tools/typespec-client-generator-core";
 import "./main.tsp";
 import "../Azure.AI.Agents/main.tsp";
-import "../OpenAI.Assistants/main.tsp";
 
 using Azure.ClientGenerator.Core;
 using Azure.AI.Agents;
-using Azure.AI.OpenAI.Assistants;
 
 @@clientName(Azure.AI.Projects, "AIProjectClient");
 
@@ -169,7 +167,7 @@ using Azure.AI.OpenAI.Assistants;
 @@clientName(Azure.AI.Agents.BrowserAutomationToolDefinition.type, "type_", "python");
 
 // Connection credential models with 'type' discriminators
-@@clientName(Azure.AI.Projects.BaseCredentials.type, "type_", "python");
+@@clientName(Azure.AI.Projects.BaseCredentials.type, "credential_type", "python");
 @@clientName(Azure.AI.Projects.ApiKeyCredentials.type, "credential_type", "python");
 @@clientName(Azure.AI.Projects.EntraIDCredentials.type, "credential_type", "python");
 @@clientName(Azure.AI.Projects.CustomCredential.type, "credential_type", "python");
