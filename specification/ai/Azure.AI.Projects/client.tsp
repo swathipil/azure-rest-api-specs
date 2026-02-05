@@ -3,6 +3,21 @@ import "./main.tsp";
 
 using Azure.ClientGenerator.Core;
 
+// ===== CLIENT CUSTOMIZATIONS FOR APIView FEEDBACK =====
+// APIView URL: https://spa.apiview.dev/review/a8bd55fd470240e29e7648d13a7882eb?activeApiRevisionId=05853f0753a7468c931dc099c6c2abfb
+//
+// This file contains TypeSpec client customizations to address APIView feedback for the azure-ai-projects Python SDK.
+// Note: The azure-ai-projects Python package includes types from multiple TypeSpec specs:
+//   - Azure.AI.Projects (this spec)
+//   - Azure.AI.Agents
+//   - OpenAI.Assistants
+//
+// Per issue instructions, only Azure.AI.Projects/client.tsp should be modified.
+// Customizations for types from other namespaces that cannot be applied here require:
+//   1. Updates to their respective client.tsp files, OR
+//   2. Python code customizations (using _patch.py files)
+// ===================================================
+
 @@clientName(Azure.AI.Projects, "AIProjectClient");
 
 // Shorter method names for SDK datasets operations
@@ -148,3 +163,10 @@ using Azure.ClientGenerator.Core;
 
 // Python-specific: Rename 'id' parameters to avoid shadowing built-in
 @@clientName(Azure.AI.Projects.Connection.id, "connectionId", "python");
+
+// ===== APIView Feedback: Rename 'object' property to avoid shadowing built-in =====
+
+// Note: AgentDeletionStatus.object is from Azure.AI.Agents namespace but included in azure-ai-projects Python package
+// The feedback refers to this as DeleteAgentResponse.object - renaming to avoid shadowing Python's 'object' built-in
+// Commenting out as cross-namespace references may not work - this will need code customization
+// @@clientName(Azure.AI.Agents.AgentDeletionStatus.object, "status", "python");
