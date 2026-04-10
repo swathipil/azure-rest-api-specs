@@ -96,3 +96,12 @@ interface ContentUnderstandingClient {
 
 @@convenientAPI(ContentAnalyzers.update, false, "csharp");
 @@convenientAPI(ContentAnalyzers.updateDefaults, false, "csharp");
+
+// Rename NumberField to NumField in Python for consistency.
+@@clientName(NumberField, "NumField", "python");
+
+// Change createdAt type to string in Python (instead of datetime) for AnalyzeResult.
+@@alternateType(AnalyzeResult.createdAt, string, "python");
+
+// Rename ProcessingLocation.global to GLOBAL_ZONE in Python to avoid conflict with Python built-in.
+@@clientName(ProcessingLocation.global, "GLOBAL_ZONE", "python");
